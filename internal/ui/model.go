@@ -280,6 +280,13 @@ func (m *Model) refreshAll() {
 func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Keys typed faster than a frame arrive as one message; outside the search
 	// box each one is a separate command.
+	if k.Type == tea.KeyRunes && !m.searching && !k.Paste {
+		runes := make([]rune, len(k.Runes))
+		for i, r := range k.Runes {
+			runes[i] = latinKey(r)
+		}
+		k.Runes = runes
+	}
 	if k.Type == tea.KeyRunes && len(k.Runes) > 1 && !m.searching && !k.Paste {
 		var model tea.Model = m
 		var cmds []tea.Cmd

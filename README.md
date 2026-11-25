@@ -55,7 +55,8 @@ Linux and macOS are supported. Windows is not yet (mpv's IPC uses named pipes th
 
 ## Usage
 
-Run `qari`. Press `?` at any time for the full list of keys.
+Run `qari`. Press `?` at any time for the full list of keys. Shortcuts also work on the Arabic
+keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` searches like `/`.
 
 | Key | Action |
 | --- | --- |

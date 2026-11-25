@@ -51,3 +51,17 @@ func equal(a, b []int) bool {
 	}
 	return true
 }
+
+// On the Arabic layout the same physical keys must trigger the same commands.
+func TestArabicLayoutKeys(t *testing.T) {
+	cases := map[string]string{"ض": "q", "ظ": "/", "ب": "f", "ش": "a", "ج": "[", "د": "]", ",": "<", ".": ">", "ِ": "A", "ﻷ": "G", "؟": "?"}
+	for ar, want := range cases {
+		got := ""
+		for _, r := range ar {
+			got += string(latinKey(r))
+		}
+		if got != want {
+			t.Errorf("latinKey(%q) = %q, want %q", ar, got, want)
+		}
+	}
+}

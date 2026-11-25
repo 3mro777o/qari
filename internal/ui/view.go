@@ -245,6 +245,7 @@ func (m Model) helpView() string {
 	}
 	out := "\n " + sTitle.Render("qari "+m.opt.Version) + sDim.Render("  listen to the Quran from mp3quran.net") + "\n\n" +
 		lipgloss.NewStyle().PaddingLeft(1).Render(body) + "\n" +
+		sDim.Render(" Keys also work on the Arabic keyboard layout: the key position counts, not the letter.") + "\n" +
 		sDim.Render(" Progress is saved automatically. Popularity: way2quran.com, quranicaudio.com, quran.com.") + "\n" +
 		sDim.Render(" Press any key to close.")
 	lines := strings.Split(out, "\n")
