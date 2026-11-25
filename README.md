@@ -6,7 +6,7 @@ you left off. Playback runs through [mpv](https://mpv.io).
 
 ![Home screen: continue listening, favorite qaris and the most listened qaris](docs/home.png)
 
-![A qari's surah list while Al-Kahf is playing](docs/playing.png)
+![A qari's surah list while Ya-Sin is playing; the player frame turns gold and carries the surah name](docs/playing.png)
 
 ## Features
 

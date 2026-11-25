@@ -112,7 +112,7 @@ func (m *Model) reciterRow(r *api.ReciterEntry, surah int) row {
 			meta = append(meta, progressLabel(p))
 		}
 	}
-	rw.meta = strings.Join(meta, " · ")
+	rw.meta = strings.Join(meta, "   ")
 	return rw
 }
 
@@ -125,7 +125,7 @@ func (m *Model) reciterRows(surah int) []row {
 	return rows
 }
 
-// rewayaShort turns "Rewayat Hafs A'n Assem - Murattal" into "Hafs · Murattal".
+// rewayaShort turns "Rewayat Hafs A'n Assem - Murattal" into "Hafs, Murattal".
 func (m *Model) rewayaShort(ms *api.Moshaf) string {
 	name := ms.Name
 	riw, style, ok := strings.Cut(name, " - ")
@@ -137,7 +137,7 @@ func (m *Model) rewayaShort(ms *api.Moshaf) string {
 		riw = riw[:i]
 	}
 	style = strings.NewReplacer("Almusshaf Al Mojawwad", "Mujawwad", "Almusshaf Al Mo'lim", "Teaching").Replace(style)
-	return riw + " · " + style
+	return riw + ", " + style
 }
 
 func (m *Model) moshafRows(r *api.ReciterEntry) []row {
@@ -172,16 +172,16 @@ func progressMark(p *store.Progress) (string, lipgloss.Style) {
 	case p == nil:
 		return "", sDim
 	case p.Finished:
-		return "✓", sAccent
+		return "✓", sDone
 	case p.Position < 5:
 		return "", sDim
 	}
 	return "◔", sGold // one glyph: ◑ and ◕ render double-width in some fonts
 }
 
-func (m *Model) surahLabel(n int) (title, arabic, search string) {
+func (m *Model) surahLabel(n int) (num, title, arabic, search string) {
 	e := m.cat.Surahs[n-1]
-	return fmt.Sprintf("%3d  %s", n, e.Name), e.Arabic, e.Search + " " + fmt.Sprint(n)
+	return fmt.Sprintf("%3d", n), e.Name, e.Arabic, e.Search + " " + fmt.Sprint(n)
 }
 
 func (m *Model) surahRows(r *api.ReciterEntry, ms *api.Moshaf) []row {
@@ -191,8 +191,8 @@ func (m *Model) surahRows(r *api.ReciterEntry, ms *api.Moshaf) []row {
 		if !have[n] {
 			continue
 		}
-		title, ar, search := m.surahLabel(n)
-		rw := row{title: title, arabic: ar, search: search, data: surahChoice{r, ms, n}, metaSt: sDim}
+		num, title, ar, search := m.surahLabel(n)
+		rw := row{num: num, title: title, arabic: ar, search: search, data: surahChoice{r, ms, n}, metaSt: sDim}
 		p := m.opt.Store.Get(store.Track{Reciter: r.ID, Moshaf: ms.ID, Surah: n})
 		rw.mark, rw.markSt = progressMark(p)
 		if p != nil && (p.Finished || p.Position >= 5) {
@@ -209,14 +209,14 @@ func (m *Model) surahRows(r *api.ReciterEntry, ms *api.Moshaf) []row {
 func (m *Model) allSurahRows() []row {
 	rows := make([]row, 0, 114)
 	for n := 1; n <= 114; n++ {
-		title, ar, search := m.surahLabel(n)
+		num, title, ar, search := m.surahLabel(n)
 		e := m.cat.Surahs[n-1]
 		place := "Medinan"
 		if e.Makkia == 1 {
 			place = "Meccan"
 		}
 		pages := e.EndPage - e.StartPage + 1
-		rows = append(rows, row{title: title, sub: place, arabic: ar, search: search, data: allSurah(n),
+		rows = append(rows, row{num: num, title: title, sub: place, arabic: ar, search: search, data: allSurah(n),
 			meta: plural(pages, "page"), metaSt: sDim})
 	}
 	return rows
@@ -245,16 +245,19 @@ func (m *Model) homeRows() []row {
 				continue
 			}
 			mark, st := progressMark(&p)
-			title, ar, search := m.surahLabel(p.Surah)
+			if m.now != nil && m.now.track == p.Track {
+				mark, st = "♪", sAccent
+			}
+			num, title, ar, search := m.surahLabel(p.Surah)
 			sub := r.Name
 			if len(r.Moshaf) > 1 {
 				for i := range r.Moshaf {
 					if r.Moshaf[i].ID == p.Moshaf {
-						sub += " · " + m.rewayaShort(&r.Moshaf[i])
+						sub += " (" + m.rewayaShort(&r.Moshaf[i]) + ")"
 					}
 				}
 			}
-			rows = append(rows, row{mark: mark, markSt: st, title: strings.TrimSpace(title), sub: sub,
+			rows = append(rows, row{mark: mark, markSt: st, num: num, title: title, sub: sub,
 				meta: progressLabel(&p), metaSt: sDim, arabic: ar, search: search + " " + r.Search, data: resumeRow(p.Track)})
 		}
 	}
@@ -266,10 +269,16 @@ func (m *Model) homeRows() []row {
 	}
 	if len(favs) > 0 {
 		sort.Slice(favs, func(i, j int) bool { return norm.Fold(favs[i].Name) < norm.Fold(favs[j].Name) })
+		if len(rows) > 0 {
+			rows = append(rows, row{header: true})
+		}
 		rows = append(rows, row{header: true, title: "Favorite qaris"})
 		for _, r := range favs {
 			rows = append(rows, m.reciterRow(r, 0))
 		}
+	}
+	if len(rows) > 0 {
+		rows = append(rows, row{header: true})
 	}
 	rows = append(rows, row{header: true, title: "Most listened"})
 	saved := m.opt.Store.Settings.Sort

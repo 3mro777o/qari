@@ -12,6 +12,7 @@ import (
 type row struct {
 	mark   string // left gutter, e.g. a star or progress glyph
 	markSt lipgloss.Style
+	num    string // dim number column before the title, e.g. a surah number
 	title  string
 	sub    string // dim text after the title
 	meta   string // right-aligned, before the Arabic name
@@ -117,7 +118,7 @@ func (l *listView) end()  { l.cursor = len(l.visible) - 1; l.skipHeaders(-1) }
 
 func (l *listView) view(width, height int, showArabic bool) string {
 	if len(l.visible) == 0 {
-		return sDim.Render("  " + l.empty)
+		return "\n" + sGold.Render("   ✦ ") + sDim.Render(l.empty)
 	}
 	if l.cursor < l.offset {
 		l.offset = l.cursor
@@ -145,7 +146,10 @@ func (l *listView) view(width, height int, showArabic bool) string {
 
 func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string {
 	if r.header {
-		return " " + sHeader.Render(r.title)
+		if r.title == "" { // spacer between sections
+			return ""
+		}
+		return band(r.title, width)
 	}
 	// Every segment carries the row background, since an inner style's reset
 	// would otherwise cut a background set on the whole line.
@@ -161,10 +165,16 @@ func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string
 		mark = " "
 	}
 	gutter := st(plain).Render(" ")
+	numSt := sDim
 	if sel {
-		gutter = st(sAccent).Render("▌")
+		gutter = st(sGold).Render("▌")
+		numSt = sGold
 	}
 	left := gutter + st(r.markSt).Render(mark) + st(plain).Render(" ")
+	if r.num != "" {
+		left += st(numSt).Render(r.num) + st(plain).Render("  ")
+	}
+	lw := lipgloss.Width(left)
 
 	// Right column: meta and Arabic name. On narrow screens drop the meta
 	// first, then the Arabic name, so the title keeps at least 16 cells.
@@ -179,14 +189,14 @@ func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string
 		}
 		return w
 	}
-	if width-4-rightWidth() < 16 {
+	if width-lw-1-rightWidth() < 16 {
 		meta = ""
 	}
-	if width-4-rightWidth() < 16 {
+	if width-lw-1-rightWidth() < 16 {
 		ar = ""
 	}
 	rw := rightWidth()
-	room := width - 3 - rw - 2
+	room := width - lw - rw - 2
 	full := r.title
 	if r.sub != "" {
 		full += "  " + r.sub
@@ -199,7 +209,7 @@ func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string
 	}
 	title := st(sText.Bold(sel)).Render(t) + st(sDim).Render(sub)
 
-	gap := st(plain).Render(strings.Repeat(" ", max(width-3-tw-rw-1, 1)))
+	gap := st(plain).Render(strings.Repeat(" ", max(width-lw-tw-rw-1, 1)))
 	right := ""
 	if meta != "" {
 		right += st(r.metaSt).Render(meta)
@@ -209,7 +219,7 @@ func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string
 			right += st(plain).Render("  ")
 		}
 		// RLI..PDI isolate the Arabic run so bidi terminals keep the columns.
-		right += st(sText).Render("\u2067" + ar + "\u2069")
+		right += st(sGold).Render("\u2067" + ar + "\u2069")
 	}
 	return left + title + gap + right + st(plain).Render(" ")
 }

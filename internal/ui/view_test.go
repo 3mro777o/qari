@@ -31,18 +31,27 @@ func TestViewFitsScreen(t *testing.T) {
 		t.Skip("no cached catalog:", err)
 	}
 	st, _ := store.Open(filepath.Join(t.TempDir(), "s.json"))
-	var mm tea.Model = New(Options{Client: client, Store: st, Popular: popular.Load()})
-	mm, _ = mm.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
-	mm, _ = mm.Update(catalogMsg{cat: cat})
-	for tab := '1'; tab <= '4'; tab++ {
-		mm, _ = mm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{tab}})
-		lines := strings.Split(mm.View(), "\n")
-		if len(lines) != 30 {
-			t.Errorf("tab %c: %d lines, want 30", tab, len(lines))
-		}
-		for i, l := range lines {
-			if w := ansi.StringWidth(l); w > 110 {
-				t.Errorf("tab %c line %d: width %d > 110: %q", tab, i, w, ansi.Strip(l))
+	for _, size := range [][2]int{{110, 30}, {64, 18}, {160, 45}, {60, 16}} {
+		w, h := size[0], size[1]
+		var mm tea.Model = New(Options{Client: client, Store: st, Popular: popular.Load()})
+		mm, _ = mm.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		mm, _ = mm.Update(catalogMsg{cat: cat})
+		for _, key := range "1234?" {
+			mm, _ = mm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			lines := strings.Split(mm.View(), "\n")
+			if key != '?' && len(lines) != h {
+				t.Errorf("%dx%d tab %c: %d lines, want %d", w, h, key, len(lines), h)
+			}
+			if len(lines) > h {
+				t.Errorf("%dx%d help: %d lines > %d", w, h, len(lines), h)
+			}
+			for i, l := range lines {
+				if lw := ansi.StringWidth(l); lw > w {
+					t.Errorf("%dx%d key %c line %d: width %d: %q", w, h, key, i, lw, ansi.Strip(l))
+				}
+			}
+			if key == '?' {
+				mm, _ = mm.Update(tea.KeyMsg{Type: tea.KeyEsc})
 			}
 		}
 	}
