@@ -212,6 +212,8 @@ func (p *Player) AddVolume(d float64) float64 {
 	return v
 }
 
+func (p *Player) SetMute(on bool) { p.cmdLocked("set_property", "mute", on) }
+
 // SetSpeed sets playback speed (pitch is preserved by mpv).
 func (p *Player) SetSpeed(s float64) {
 	p.mu.Lock()

@@ -104,6 +104,7 @@ type Model struct {
 	now      *nowPlaying
 	speedIdx int
 	volume   float64
+	muted    bool
 	sleepIdx int
 	sleepAt  time.Time
 	lastSave time.Time
@@ -407,16 +408,51 @@ func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openNowPlaying()
 	}
 
-	if p == nil || m.now == nil {
+	// Settings that also apply before anything plays.
+	switch key {
+	case "r":
+		st := &m.opt.Store.Settings
+		st.Repeat = next(repeatModes, st.Repeat)
+		m.flash("After a surah: "+repeatLabel[st.Repeat], false)
+		return m, nil
+	case "t":
+		m.cycleSleep()
+		return m, nil
+	}
+	if p == nil {
 		switch key {
-		case " ", "left", "right", "n", "p", "x", "[", "]":
-			if p == nil {
-				m.flash("mpv is not installed, so nothing can play", true)
-			}
+		case " ", "left", "right", "shift+left", "shift+right", "n", "p", "x", "[", "]", "-", "+", "=", "m":
+			m.flash("mpv is not installed, so nothing can play", true)
 		}
-		if key != "r" && key != "t" && key != "-" && key != "+" && key != "=" && key != "<" && key != ">" {
-			return m, nil
+		return m, nil
+	}
+	switch key { // mpv's own keys where they don't clash with list navigation
+	case "-", "+", "=":
+		d := 5.0
+		if key == "-" {
+			d = -5
 		}
+		m.volume = p.AddVolume(d)
+		m.flash(fmt.Sprintf("Volume %d%%", int(m.volume)), false)
+	case "m":
+		m.muted = !m.muted
+		p.SetMute(m.muted)
+		if m.muted {
+			m.flash("Muted", false)
+		} else {
+			m.flash("Sound on", false)
+		}
+	case "[", "]":
+		if key == "[" {
+			m.speedIdx = max(m.speedIdx-1, 0)
+		} else {
+			m.speedIdx = min(m.speedIdx+1, len(speeds)-1)
+		}
+		p.SetSpeed(speeds[m.speedIdx])
+		m.flash(fmt.Sprintf("Speed %.2g×", speeds[m.speedIdx]), false)
+	}
+	if m.now == nil {
+		return m, nil
 	}
 	switch key {
 	case " ":
@@ -425,9 +461,9 @@ func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		p.Seek(-10)
 	case "right":
 		p.Seek(10)
-	case "[":
+	case "shift+left":
 		p.Seek(-60)
-	case "]":
+	case "shift+right":
 		p.Seek(60)
 	case "n":
 		m.step(1)
@@ -435,45 +471,24 @@ func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.step(-1)
 	case "x":
 		m.stop()
-	case "r":
-		st := &m.opt.Store.Settings
-		st.Repeat = next(repeatModes, st.Repeat)
-		m.flash("After a surah: "+repeatLabel[st.Repeat], false)
-	case "t":
-		m.sleepIdx = (m.sleepIdx + 1) % len(sleepOptions)
-		d := sleepOptions[m.sleepIdx]
-		switch {
-		case d == 0:
-			m.sleepAt = time.Time{}
-			m.flash("Sleep timer off", false)
-		case d < 0:
-			m.sleepAt = time.Time{}
-			m.flash("Sleep timer: pause at the end of this surah", false)
-		default:
-			m.sleepAt = time.Now().Add(d)
-			m.flash(fmt.Sprintf("Sleep timer: pause in %d min", int(d.Minutes())), false)
-		}
-	case "-", "+", "=":
-		if p != nil {
-			d := 5.0
-			if key == "-" {
-				d = -5
-			}
-			m.volume = p.AddVolume(d)
-			m.flash(fmt.Sprintf("Volume %d%%", int(m.volume)), false)
-		}
-	case "<", ">":
-		if p != nil {
-			if key == "<" {
-				m.speedIdx = max(m.speedIdx-1, 0)
-			} else {
-				m.speedIdx = min(m.speedIdx+1, len(speeds)-1)
-			}
-			p.SetSpeed(speeds[m.speedIdx])
-			m.flash(fmt.Sprintf("Speed %.2gx", speeds[m.speedIdx]), false)
-		}
 	}
 	return m, nil
+}
+
+func (m *Model) cycleSleep() {
+	m.sleepIdx = (m.sleepIdx + 1) % len(sleepOptions)
+	d := sleepOptions[m.sleepIdx]
+	switch {
+	case d == 0:
+		m.sleepAt = time.Time{}
+		m.flash("Sleep timer off", false)
+	case d < 0:
+		m.sleepAt = time.Time{}
+		m.flash("Sleep timer: pause at the end of this surah", false)
+	default:
+		m.sleepAt = time.Now().Add(d)
+		m.flash(fmt.Sprintf("Sleep timer: pause in %d min", int(d.Minutes())), false)
+	}
 }
 
 func next(list []string, cur string) string {

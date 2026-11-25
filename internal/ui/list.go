@@ -213,3 +213,25 @@ func (l *listView) renderRow(r row, sel bool, width int, showArabic bool) string
 	}
 	return left + title + gap + right + st(plain).Render(" ")
 }
+
+// count is the number of selectable rows shown; position is the cursor's
+// 1-based index among them.
+func (l *listView) count() int {
+	n := 0
+	for _, i := range l.visible {
+		if !l.rows[i].header {
+			n++
+		}
+	}
+	return n
+}
+
+func (l *listView) position() int {
+	n := 0
+	for k := 0; k <= l.cursor && k < len(l.visible); k++ {
+		if !l.rows[l.visible[k]].header {
+			n++
+		}
+	}
+	return n
+}

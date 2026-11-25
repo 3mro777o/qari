@@ -22,7 +22,7 @@ you left off. Playback runs through [mpv](https://mpv.io).
 - **Remembers your place.** Every surah keeps its position. *Continue listening* on the home
   screen resumes it, and finished surahs get a ✓.
 - **Made for listening:** autoplay the next surah, repeat one surah, sleep timer (15–60 minutes
-  or end of surah), speed 0.75×–2× without changing pitch, volume, and riwayah filter (Hafs,
+  or end of surah), speed 0.75×–2× without changing pitch, volume and mute, and riwayah filter (Hafs,
   Warsh, Qalun, …).
 - **Favorites** and **live Quran radio** stations.
 - **Media keys** work if you have [mpv-mpris](https://github.com/hoyon/mpv-mpris) installed.
@@ -55,7 +55,8 @@ Linux and macOS are supported. Windows is not yet (mpv's IPC uses named pipes th
 
 ## Usage
 
-Run `qari`. Press `?` at any time for the full list of keys. Shortcuts also work on the Arabic
+Run `qari`. Press `?` at any time for the full list of keys. The keys follow other terminal players
+(spotify_player, termusic) and mpv: `space` pauses, `n`/`p` skip surahs, `[`/`]` change speed. Shortcuts also work on the Arabic
 keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` searches like `/`.
 
 | Key | Action |
@@ -66,7 +67,7 @@ keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` s
 | `/` | Search the current list |
 | `esc` | Clear the search, then go back |
 | `space` | Pause / resume |
-| `←` `→` / `[` `]` | Seek 10 seconds / 1 minute |
+| `←` `→` | Seek 10 seconds (with `shift`: 1 minute) |
 | `n` `p` | Next / previous surah |
 | `f` | Add or remove a favorite |
 | `a` | Show all qaris / only well-known complete ones |
@@ -75,7 +76,8 @@ keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` s
 | `r` | After a surah: autoplay next, repeat, or stop |
 | `t` | Sleep timer |
 | `-` `+` | Volume |
-| `<` `>` | Speed |
+| `m` | Mute |
+| `[` `]` | Slower / faster (like mpv) |
 | `o` | Jump to what is playing |
 | `A` | Show or hide Arabic surah names |
 | `q` | Quit (your place is saved) |

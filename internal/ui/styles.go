@@ -12,8 +12,8 @@ var (
 	danger = lipgloss.AdaptiveColor{Light: "#B91C1C", Dark: "#F87171"}
 
 	sTitle    = lipgloss.NewStyle().Foreground(accent).Bold(true)
-	sTab      = lipgloss.NewStyle().Foreground(dim).Padding(0, 1)
-	sTabOn    = lipgloss.NewStyle().Foreground(accent).Bold(true).Padding(0, 1).Underline(true)
+	sTab      = lipgloss.NewStyle().Foreground(text).PaddingLeft(1)
+	sTabOn    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#0B1F1C"}).Background(accent).Bold(true)
 	sDim      = lipgloss.NewStyle().Foreground(dim)
 	sText     = lipgloss.NewStyle().Foreground(text)
 	sGold     = lipgloss.NewStyle().Foreground(gold)

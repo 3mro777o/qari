@@ -103,10 +103,8 @@ func (m *Model) reciterRow(r *api.ReciterEntry, surah int) row {
 		for _, ms := range r.Moshaf {
 			total = max(total, ms.SurahTotal)
 		}
-		if total >= 114 {
-			meta = append(meta, "complete")
-		} else {
-			meta = append(meta, fmt.Sprintf("%d/114", total))
+		if total < 114 { // complete is the norm; only flag partial recordings
+			meta = append(meta, fmt.Sprintf("%d/114 surahs", total))
 		}
 	} else if ms := m.bestMoshaf(r, surah); ms != nil {
 		rw.sub = m.rewayaShort(ms)

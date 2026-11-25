@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const chrome = 7 // header, rule, crumb, rule, 2 player lines, help line
+const chrome = 8 // header, rule, crumb, player card (4), footer
 
 func (m Model) listHeight() int { return max(m.h-chrome, 1) }
 
@@ -26,13 +26,11 @@ func (m Model) View() string {
 	if m.showHelp {
 		return m.helpView()
 	}
-	rule := sRule.Render(strings.Repeat("─", m.w))
 	parts := []string{
 		m.headerView(),
-		rule,
+		sRule.Render(strings.Repeat("─", m.w)),
 		m.crumbView(),
 		m.listView(),
-		rule,
 		m.playerView(),
 		m.footerView(),
 	}
@@ -40,21 +38,20 @@ func (m Model) View() string {
 }
 
 func (m Model) headerView() string {
-	left := sTitle.Render(" ✦ qari ")
+	left := sTitle.Render(" ✦ qari") + "  "
 	for i, name := range tabNames {
-		label := fmt.Sprintf("%d %s", i+1, name)
 		if i == m.tab {
-			left += sTabOn.Render(label)
+			left += sTabOn.Render(" "+name+" ") + " "
 		} else {
-			left += sTab.Render(label)
+			left += sDim.Render(fmt.Sprint(i+1)) + sTab.Render(name) + " "
 		}
 	}
 	right := ""
 	if m.opt.Client.Offline() {
-		right = sGold.Render("offline ")
+		right = sGold.Render("● offline ")
 	}
 	gap := max(m.w-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	return left + strings.Repeat(" ", gap) + right
+	return ansi.Truncate(left+strings.Repeat(" ", gap)+right, m.w, "")
 }
 
 func (m Model) crumbView() string {
@@ -99,11 +96,16 @@ func (m Model) crumbView() string {
 	}
 	line := " " + sText.Bold(true).Render(title)
 	if s.list.query != "" {
-		line += sAccent.Render("  /"+s.list.query) + sDim.Render(fmt.Sprintf(" (%d) esc clears", len(s.list.visible)))
+		line += sAccent.Render("  /"+s.list.query) + sDim.Render("  esc clears")
 	} else if info != "" {
 		line += sDim.Render("  " + info)
 	}
-	return ansi.Truncate(line, m.w, "…")
+	pos := ""
+	if n := s.list.count(); n > 0 {
+		pos = sDim.Render(fmt.Sprintf("%d/%d ", s.list.position(), n))
+	}
+	line = ansi.Truncate(line, max(m.w-lipgloss.Width(pos)-1, 0), "…")
+	return line + strings.Repeat(" ", max(m.w-lipgloss.Width(line)-lipgloss.Width(pos), 1)) + pos
 }
 
 func (m Model) listView() string {
@@ -116,46 +118,48 @@ func (m Model) listView() string {
 	return body
 }
 
+// playerView is a rounded card: what is playing, then a progress line.
 func (m Model) playerView() string {
-	if m.opt.Player == nil {
-		return sErr.Render(" mpv was not found.") + sDim.Render(" Browsing works; install mpv to listen.") + "\n"
-	}
-	if m.now == nil {
-		return sDim.Render(" Nothing playing — pick a surah and press enter") + "\n " + m.modesView()
-	}
-	n := m.now
-	ev := n.ev
-	icon := "▶"
+	inner := max(m.w-4, 10) // border and padding
+	var line1, line2 string
 	switch {
-	case ev.Loading:
-		icon = "…"
-	case ev.Paused:
-		icon = "‖"
-	}
-	var title, sub string
-	if n.isRadio() {
-		title, sub = strings.TrimSpace(n.radio.Name), "live radio"
-	} else {
-		e := m.cat.Surahs[n.track.Surah-1]
-		title = e.Name
-		if m.showArabic() && e.Arabic != "" {
-			title += "  ⁧" + e.Arabic + "⁩"
+	case m.opt.Player == nil:
+		line1 = sErr.Render("mpv was not found.") + sDim.Render(" Browsing works; install mpv to listen.")
+	case m.now == nil:
+		line1 = sDim.Render("Nothing playing — pick a surah and press enter")
+		line2 = m.modesView(inner)
+	default:
+		n, ev := m.now, m.now.ev
+		icon := "▶"
+		switch {
+		case ev.Loading:
+			icon = "…"
+		case ev.Paused:
+			icon = "‖"
 		}
-		sub = n.reciter.Name + " · " + m.rewayaShort(n.moshaf)
+		var title, ar, sub string
+		if n.isRadio() {
+			title, sub = strings.TrimSpace(n.radio.Name), "live radio"
+		} else {
+			e := m.cat.Surahs[n.track.Surah-1]
+			title = e.Name
+			if m.showArabic() && e.Arabic != "" {
+				ar = "  \u2067" + e.Arabic + "\u2069"
+			}
+			sub = n.reciter.Name + " · " + m.rewayaShort(n.moshaf)
+		}
+		line1 = sAccent.Bold(true).Render(icon+"  "+title) + sText.Render(ar) + sDim.Render("   "+sub)
+		if n.isRadio() || ev.Duration <= 0 {
+			line2 = sDim.Render(clock(ev.Pos)) + "   " + m.modesView(inner-8)
+		} else {
+			modes := m.modesView(inner / 2)
+			cur, total := clock(ev.Pos), clock(ev.Duration)
+			barW := inner - lipgloss.Width(cur) - lipgloss.Width(total) - lipgloss.Width(modes) - 6
+			line2 = sText.Render(cur) + " " + bar(ev.Pos/ev.Duration, barW) + " " + sDim.Render(total) + "   " + modes
+		}
 	}
-	line1 := " " + sAccent.Bold(true).Render(icon+" "+title) + sDim.Render("  "+sub)
-	line1 = ansi.Truncate(line1, m.w, "…")
-
-	var line2 string
-	if n.isRadio() || ev.Duration <= 0 {
-		line2 = " " + sDim.Render(clock(ev.Pos)) + "  " + m.modesView()
-	} else {
-		modes := m.modesView()
-		times := clock(ev.Pos) + " / " + clock(ev.Duration)
-		barW := m.w - lipgloss.Width(times) - lipgloss.Width(modes) - 6
-		line2 = " " + sText.Render(times) + "  " + bar(ev.Pos/ev.Duration, barW) + "  " + modes
-	}
-	return line1 + "\n" + line2
+	card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(faint).Padding(0, 1).Width(m.w - 2)
+	return card.Render(ansi.Truncate(line1, inner, "…") + "\n" + ansi.Truncate(line2, inner, "…"))
 }
 
 func bar(f float64, w int) string {
@@ -163,22 +167,26 @@ func bar(f float64, w int) string {
 		return ""
 	}
 	f = min(max(f, 0), 1)
-	full := int(f * float64(w))
-	return sBarFull.Render(strings.Repeat("━", full)) + sBarEmpty.Render(strings.Repeat("─", w-full))
+	full := min(int(f*float64(w)), w-1)
+	return sBarFull.Render(strings.Repeat("━", full)) + sAccent.Render("●") + sBarEmpty.Render(strings.Repeat("─", w-full-1))
 }
 
-func (m Model) modesView() string {
-	parts := []string{
-		fmt.Sprintf("vol %d", int(m.volume)),
-		fmt.Sprintf("%.2gx", speeds[m.speedIdx]),
-		repeatLabel[m.opt.Store.Settings.Repeat],
+// modesView shows volume, speed, after-surah mode and sleep timer, dropping
+// the least important ones when space is short.
+func (m Model) modesView(room int) string {
+	vol := fmt.Sprintf("vol %d", int(m.volume))
+	if m.muted {
+		vol = "muted"
 	}
+	parts := []string{vol, fmt.Sprintf("%.2g×", speeds[m.speedIdx]), "after: " + repeatLabel[m.opt.Store.Settings.Repeat]}
 	switch d := sleepOptions[m.sleepIdx]; {
 	case d < 0:
 		parts = append(parts, "sleep: end of surah")
 	case d > 0:
-		left := time.Until(m.sleepAt).Round(time.Minute)
-		parts = append(parts, fmt.Sprintf("sleep %dm", int(left.Minutes())))
+		parts = append(parts, fmt.Sprintf("sleep %dm", max(int(time.Until(m.sleepAt).Minutes()+0.5), 0)))
+	}
+	for len(parts) > 1 && lipgloss.Width(strings.Join(parts, " · ")) > room {
+		parts = parts[1:]
 	}
 	return sDim.Render(strings.Join(parts, " · "))
 }
@@ -191,9 +199,22 @@ func (m Model) footerView() string {
 		}
 		return ansi.Truncate(" "+st.Render(m.status), m.w, "…")
 	}
-	keys := [][2]string{{"enter", "open/play"}, {"/", "search"}, {"esc", "back"}, {"space", "pause"}, {"←→", "seek"}, {"n/p", "next/prev"}, {"f", "favorite"}, {"a", "show all"}, {"?", "help"}, {"q", "quit"}}
-	if m.searching {
+	all := "show all"
+	if m.opt.Store.Settings.ShowAll {
+		all = "well-known only"
+	}
+	var keys [][2]string
+	switch {
+	case m.searching:
 		keys = [][2]string{{"type", "to filter"}, {"↑↓", "move"}, {"enter", "open"}, {"esc", "cancel"}}
+	case m.now != nil:
+		pause := "pause"
+		if m.now.ev.Paused {
+			pause = "resume"
+		}
+		keys = [][2]string{{"space", pause}, {"←→", "seek"}, {"n/p", "next/prev surah"}, {"/", "search"}, {"f", "favorite"}, {"a", all}, {"?", "all keys"}, {"q", "quit"}}
+	default:
+		keys = [][2]string{{"enter", "open/play"}, {"/", "search"}, {"esc", "back"}, {"f", "favorite"}, {"a", all}, {"s", "sort"}, {"?", "all keys"}, {"q", "quit"}}
 	}
 	var b strings.Builder
 	b.WriteString(" ")
@@ -222,8 +243,8 @@ func (m Model) helpView() string {
 			{"w", "cycle riwayah (Hafs, Warsh, …)"}, {"f", "add / remove favorite"}, {"A", "show / hide Arabic surah names"},
 		}},
 		{"Playback", [][2]string{
-			{"space", "pause / resume"}, {"← →", "seek 10 s"}, {"[ ]", "seek 1 min"}, {"n p", "next / previous surah"},
-			{"x", "stop"}, {"- +", "volume"}, {"< >", "speed"}, {"r", "after a surah: autoplay / repeat / stop"},
+			{"space", "pause / resume"}, {"← →", "seek 10 s (shift: 1 min)"}, {"n p", "next / previous surah"},
+			{"x", "stop"}, {"- +", "volume"}, {"m", "mute"}, {"[ ]", "slower / faster"}, {"r", "after a surah: autoplay / repeat / stop"},
 			{"t", "sleep timer: 15-60 min or end of surah"},
 		}},
 	}
