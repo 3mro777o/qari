@@ -28,6 +28,8 @@ var version = "dev"
 func main() {
 	lang := flag.String("lang", envOr("QARI_LANG", "eng"), "language for reciter and surah names (see --languages)")
 	proxy := flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
+	theme := flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
+	listThemes := flag.Bool("themes", false, "list available color themes and exit")
 	noArabic := flag.Bool("no-arabic", false, "hide Arabic surah names (for terminals without Arabic text support)")
 	languages := flag.Bool("languages", false, "list the name languages the API offers and exit")
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -45,6 +47,15 @@ func main() {
 	if *showVersion {
 		fmt.Println("qari", version)
 		return
+	}
+	if *listThemes {
+		for _, t := range ui.Themes() {
+			fmt.Printf("%-11s %-18s %s\n", t.ID, t.Name, t.Desc)
+		}
+		return
+	}
+	if *theme != "" && !ui.ValidTheme(*theme) {
+		fail(fmt.Errorf("unknown theme %q (run --themes to list available themes)", *theme))
 	}
 
 	httpClient, err := newHTTPClient(*proxy)
@@ -85,7 +96,7 @@ func main() {
 
 	m := ui.New(ui.Options{
 		Client: client, Lang: *lang, Store: st, Player: p,
-		Popular: popular.Load(), NoArabic: *noArabic, Version: version,
+		Popular: popular.Load(), NoArabic: *noArabic, Theme: *theme, Version: version,
 	})
 	prog := tea.NewProgram(m, tea.WithAltScreen())
 	// Closing the terminal (SIGHUP) or a kill (SIGTERM) must not leave mpv

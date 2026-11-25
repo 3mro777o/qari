@@ -48,10 +48,12 @@ type Data struct {
 }
 
 type Settings struct {
-	ShowAll bool   `json:"show_all"` // show incomplete and little-known reciters
-	Sort    string `json:"sort"`
-	Rewaya  int    `json:"rewaya"`
-	Repeat  string `json:"repeat"`
+	ShowAll  bool   `json:"show_all"` // show incomplete and little-known reciters
+	Sort     string `json:"sort"`
+	Rewaya   int    `json:"rewaya"`
+	Repeat   string `json:"repeat"`
+	Theme    string `json:"theme,omitempty"`
+	NoArabic bool   `json:"no_arabic,omitempty"`
 }
 
 type Store struct {

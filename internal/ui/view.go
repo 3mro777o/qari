@@ -3,329 +3,535 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 )
 
-// chrome is the height of everything but the list: header, rule, crumb,
-// player card (4) and footer, plus a spacer under the crumb when tall enough.
-func (m Model) chrome() int {
-	if m.h >= 24 {
-		return 9
-	}
-	return 8
-}
-
-func (m Model) listHeight() int { return max(m.h-m.chrome(), 1) }
-
+// View renders the complete terminal frame at exact m.width × m.height dimensions.
 func (m Model) View() string {
-	if m.w == 0 {
+	if m.width <= 0 || m.height <= 0 {
 		return ""
+	}
+	if m.loading {
+		return fitFrame(m.renderLoading(), m.width, m.height)
 	}
 	if m.loadErr != nil {
-		return m.errorView()
+		return fitFrame(m.renderError(), m.width, m.height)
 	}
-	if m.cat == nil {
-		return "\n   " + m.spin.View() + sText.Render(" Loading qaris from mp3quran.net…")
+
+	header := m.renderHeader()
+	canvas := m.renderCanvas()
+	dock := m.renderDock()
+
+	lines := make([]string, 0, m.height)
+	lines = append(lines, header...)
+	lines = append(lines, canvas...)
+	lines = append(lines, dock...)
+
+	base := fitFrame(strings.Join(lines, "\n"), m.width, m.height)
+
+	if m.overlay != overlayNone {
+		modal := m.renderOverlay()
+		base = overlayCenter(base, modal, m.width, m.height)
 	}
-	if m.showHelp {
-		return m.helpView()
-	}
-	header, rule := m.headerView()
-	parts := []string{header, rule, m.crumbView()}
-	if m.chrome() == 9 {
-		parts = append(parts, "")
-	}
-	parts = append(parts,
-		m.listView(),
-		m.playerView(),
-		m.footerView(),
-	)
-	return strings.Join(parts, "\n")
+	return fitFrame(base, m.width, m.height)
 }
 
-// headerView returns the title line and the rule under it; the rule turns
-// into a gold underline beneath the active tab.
-func (m Model) headerView() (string, string) {
-	left := sTitle.Render(" ✦ qari") + "    "
-	ulFrom, ulTo := 0, 0
+func (m Model) renderLoading() string {
+	s := m.theme.Styles
+	w, h := m.width, m.height
+	boxW := min(w-4, 52)
+	if boxW < 30 {
+		boxW = w
+	}
+
+	var box []string
+	box = append(box, frameTopLine(boxW, s.Brand.Render("✦ qari"), s.Muted.Render(shortVersion(m.version)), s.BorderPlay))
+	box = append(box, frameContentLine(boxW, "", s.BorderPlay))
+	box = append(box, frameContentLine(boxW, center(m.spinner.View()+"  "+s.TextBold.Render("Connecting to mp3quran.net"), boxW-4), s.BorderPlay))
+	box = append(box, frameContentLine(boxW, center(s.Subtext.Render("Loading qaris, surahs, riwayat and radio stations"), boxW-4), s.BorderPlay))
+	box = append(box, frameContentLine(boxW, "", s.BorderPlay))
+	box = append(box, frameBottomLine(boxW, s.Muted.Render("cached for 24h after first load"), s.Muted.Render("q quit"), s.BorderPlay))
+
+	return centerBlockVertically(box, w, h)
+}
+
+func (m Model) renderError() string {
+	s := m.theme.Styles
+	w, h := m.width, m.height
+	boxW := min(w-4, 68)
+	if boxW < 40 {
+		boxW = w
+	}
+	innerW := boxW - 4
+
+	var box []string
+	box = append(box, frameTopLine(boxW, s.Live.Render("● Could not load catalog"), s.Muted.Render("qari"), s.BorderLive))
+	box = append(box, frameContentLine(boxW, "", s.BorderLive))
+	for _, wl := range wrapWords(m.loadErr.Error(), innerW, 3) {
+		box = append(box, frameContentLine(boxW, s.Text.Render(wl), s.BorderLive))
+	}
+	box = append(box, frameContentLine(boxW, "", s.BorderLive))
+	box = append(box, frameContentLine(boxW, s.Subtext.Render("Some networks block mp3quran.net. If so, run with a proxy:"), s.BorderLive))
+	box = append(box, frameContentLine(boxW, "  "+s.AccentBold.Render("qari --proxy socks5://127.0.0.1:1080"), s.BorderLive))
+	box = append(box, frameContentLine(boxW, "", s.BorderLive))
+	box = append(box, frameBottomLine(boxW,
+		s.Key.Render("enter")+" "+s.Muted.Render("retry")+" · "+s.Key.Render("c")+" "+s.Muted.Render("theme"),
+		s.Key.Render("q")+" "+s.Muted.Render("quit"),
+		s.BorderLive,
+	))
+
+	return centerBlockVertically(box, w, h)
+}
+
+func centerBlockVertically(lines []string, w, h int) string {
+	top := max(0, (h-len(lines))/2)
+	out := make([]string, 0, h)
+	blank := strings.Repeat(" ", w)
+	for i := 0; i < top; i++ {
+		out = append(out, blank)
+	}
+	for _, l := range lines {
+		out = append(out, center(l, w))
+	}
+	for len(out) < h {
+		out = append(out, blank)
+	}
+	return strings.Join(out[:h], "\n")
+}
+
+// renderHeader renders the 2-line architectural navigation rail + segmented underline / search bar.
+func (m Model) renderHeader() []string {
+	s := m.theme.Styles
+	w := m.width
+
+	brand := " " + s.Brand.Render("✦ qari")
+	brandW := dispWidth(brand)
+
+	tabGap := "   "
+	leadGap := "    "
+	if w < 72 {
+		tabGap = " "
+		leadGap = "  "
+	} else if w < 90 {
+		tabGap = "  "
+		leadGap = "   "
+	}
+
+	tabNames := []string{"Home", "Qaris", "Surahs", "Radio"}
+	var leftBuf strings.Builder
+	leftBuf.WriteString(brand)
+	leftBuf.WriteString(leadGap)
+	curCol := brandW + len(leadGap)
+
+	activeStart, activeEnd := 0, 0
 	for i, name := range tabNames {
-		digit := sDim.Render(fmt.Sprint(i + 1))
-		if i == m.tab {
-			ulFrom = lipgloss.Width(left) + 2
-			ulTo = ulFrom + len(name)
-			left += sGold.Render(fmt.Sprint(i+1)) + " " + sText.Bold(true).Render(name)
+		if i > 0 {
+			leftBuf.WriteString(tabGap)
+			curCol += len(tabGap)
+		}
+		numStr := fmt.Sprintf("%d", i+1)
+		var seg string
+		if tabKind(i) == m.tab && m.view == viewTabs {
+			seg = s.AccentBold.Render(numStr) + " " + s.TabActive.Render(name)
+			activeStart = curCol
+			activeEnd = curCol + dispWidth(seg)
+		} else if tabKind(i) == m.tab {
+			// Inside a detail view spawned from this tab: keep subtle accent
+			seg = s.Accent.Render(numStr) + " " + s.Accent.Render(name)
+			activeStart = curCol
+			activeEnd = curCol + dispWidth(seg)
 		} else {
-			left += digit + " " + sDim.Render(name)
+			seg = s.TabNum.Render(numStr) + " " + s.TabInactive.Render(name)
 		}
-		left += "    "
+		leftBuf.WriteString(seg)
+		curCol += dispWidth(seg)
 	}
-	right := ""
-	if m.opt.Client.Offline() {
-		right = sErr.Render("offline ●") + " "
-	}
-	gap := max(m.w-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	header := ansi.Truncate(left+strings.Repeat(" ", gap)+right, m.w, "")
-	ulFrom, ulTo = min(ulFrom, m.w), min(ulTo, m.w)
-	rule := sRule.Render(strings.Repeat("─", ulFrom)) + sGold.Render(strings.Repeat("━", ulTo-ulFrom)) +
-		sRule.Render(strings.Repeat("─", m.w-ulTo))
-	return header, rule
-}
 
-func (m Model) crumbView() string {
-	s := m.top()
-	var title, info string
-	st := m.opt.Store.Settings
-	switch s.kind {
-	case scrHome:
-		title = "Home"
-	case scrReciters:
-		list, hidden := m.filteredReciters(s.surah)
-		title = "Qaris"
-		if s.surah > 0 {
-			title = "Qaris of " + m.cat.SurahName(s.surah)
-		}
-		info = fmt.Sprintf("%d shown", len(list))
-		if hidden > 0 {
-			info += fmt.Sprintf("   %d hidden (a)", hidden)
-		}
-		info += "   sort: " + st.Sort
-		if st.Rewaya != 0 {
-			info += "   " + m.cat.Riwayat[st.Rewaya]
-		}
-	case scrMoshafs:
-		title = s.reciter.Name
-		info = "choose a recitation"
-	case scrSurahs:
-		title = s.reciter.Name + sGold.Render(" › ") + sText.Render(m.rewayaShort(s.moshaf))
-		info = fmt.Sprintf("%d surahs", s.moshaf.SurahTotal)
-		if m.opt.Store.Favorites[s.reciter.ID] {
-			info = sGold.Render("★ ") + sDim.Render(info)
-		}
-	case scrAllSurahs:
-		title = "Surahs"
-		info = "enter: choose a qari"
-	case scrRadio:
-		title = "Radio"
-		info = fmt.Sprintf("%d live stations", len(m.cat.Radios))
+	var rightParts []string
+	if m.isOffline() {
+		rightParts = append(rightParts, s.OfflineBadge.Render("OFFLINE"))
 	}
+	if w >= 80 {
+		rightParts = append(rightParts, s.Muted.Render(m.theme.ID))
+	}
+	if w >= 66 {
+		rightParts = append(rightParts, s.Key.Render("?")+" "+s.Muted.Render("help"))
+	} else {
+		rightParts = append(rightParts, s.Key.Render("?"))
+	}
+	right := strings.Join(rightParts, s.Muted.Render(" · ")) + " "
+
+	line1 := rowLR(leftBuf.String(), right, w)
+
+	// Line 2: focused search bar, active search filter pill, or architectural underline rule.
+	var line2 string
+	al := m.activeList()
 	if m.searching {
-		return " " + m.input.View()
-	}
-	line := " " + sText.Bold(true).Render(title)
-	if s.list.query != "" {
-		line += sAccent.Render("   /"+s.list.query) + sDim.Render("   esc clears")
-	} else if info != "" {
-		line += sDim.Render("   " + info)
-	}
-	pos := ""
-	if n := s.list.count(); n > 0 {
-		pos = sDim.Render(fmt.Sprintf("%d of %d ", s.list.position(), n))
-	}
-	line = ansi.Truncate(line, max(m.w-lipgloss.Width(pos)-1, 0), "…")
-	return line + strings.Repeat(" ", max(m.w-lipgloss.Width(line)-lipgloss.Width(pos), 1)) + pos
-}
-
-func (m Model) listView() string {
-	h := m.listHeight()
-	body := m.top().list.view(m.w, h, m.showArabic())
-	n := strings.Count(body, "\n") + 1
-	if n < h {
-		body += strings.Repeat("\n", h-n)
-	}
-	return body
-}
-
-// playerView is a framed card. While a surah plays, the frame is gilded and
-// its name sits in the top edge like the heading of a surah in a mushaf.
-func (m Model) playerView() string {
-	inner := max(m.w-4, 10) // border and padding
-	var line1, line2, inset string
-	frame := hairline
-	switch {
-	case m.opt.Player == nil:
-		line1 = sErr.Render("mpv was not found.") + sDim.Render(" Browsing works; install mpv to listen.")
-	case m.now == nil:
-		line1 = sDim.Render("Nothing playing. Pick a surah and press enter.")
-		line2 = m.modesView(inner)
-	default:
-		n, ev := m.now, m.now.ev
-		icon := "▶"
-		frame = gold
-		switch {
-		case ev.Loading:
-			icon, frame = "…", goldDim
-		case ev.Paused:
-			icon, frame = "‖", goldDim
+		count := m.activeListCount()
+		prompt := " " + s.AccentBold.Render("/") + " "
+		matchStr := fmt.Sprintf("%d", count)
+		rightHint := s.Subtext.Render(matchStr+" matches") + s.Muted.Render(" · enter done · esc clear ")
+		if w < 72 {
+			rightHint = s.Subtext.Render(matchStr) + s.Muted.Render(" · esc ")
 		}
-		var title, sub string
-		if n.isRadio() {
-			title, sub, inset = strings.TrimSpace(n.radio.Name), "live radio", "live radio"
-		} else {
-			e := m.cat.Surahs[n.track.Surah-1]
-			title = e.Name
-			inset = e.Name
-			if m.showArabic() && e.Arabic != "" {
-				inset = "\u2067" + e.Arabic + "\u2069"
-			}
-			sub = n.reciter.Name + " (" + m.rewayaShort(n.moshaf) + ")"
+		inputMax := max(8, w-dispWidth(prompt)-dispWidth(rightHint)-2)
+		m.searchInput.Width = inputMax
+		left := prompt + m.searchInput.View()
+		line2 = rowLR(left, rightHint, w)
+	} else if al.query != "" {
+		count := m.activeListCount()
+		left := " " + s.AccentBold.Render("Filter:") + " " + s.TextBold.Render(al.query)
+		rightHint := s.Subtext.Render(fmt.Sprintf("%d matches", count)) + s.Muted.Render(" · / edit · esc clear ")
+		if w < 72 {
+			rightHint = s.Subtext.Render(fmt.Sprintf("%d", count)) + s.Muted.Render(" · esc clear ")
 		}
-		modes := m.modesView(inner / 2)
-		left := sGold.Render(icon) + "  " + sText.Bold(true).Render(title) + sDim.Render("   "+sub)
-		left = ansi.Truncate(left, max(inner-lipgloss.Width(modes)-3, 0), "…")
-		line1 = left + strings.Repeat(" ", max(inner-lipgloss.Width(left)-lipgloss.Width(modes), 1)) + modes
-		if n.isRadio() || ev.Duration <= 0 {
-			line2 = sText.Render(clock(ev.Pos)) + sDim.Render("   live")
-		} else {
-			cur, total := clock(ev.Pos), clock(ev.Duration)
-			barW := inner - lipgloss.Width(cur) - lipgloss.Width(total) - 2
-			line2 = sText.Render(cur) + " " + bar(ev.Pos/ev.Duration, barW, lipgloss.NewStyle().Foreground(frame)) + " " + sDim.Render(total)
-		}
+		line2 = rowLR(left, rightHint, w)
+	} else {
+		line2 = renderUnderlineRule(w, activeStart, activeEnd, s.Rule, s.RuleAccent)
 	}
-	bc := lipgloss.NewStyle().Foreground(frame)
-	card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), false, true, true, true).
-		BorderForeground(frame).Padding(0, 1).Width(m.w - 2)
-	body := card.Render(ansi.Truncate(line1, inner, "…") + "\n" + ansi.Truncate(line2, inner, "…"))
-	return m.cardTop(inset, bc) + "\n" + body
+
+	return []string{line1, line2}
 }
 
-// cardTop is the card's top edge with the inset centered in it.
-func (m Model) cardTop(inset string, bc lipgloss.Style) string {
-	span := m.w - 2
-	if inset == "" || ansi.StringWidth(inset)+6 > span {
-		return bc.Render("╭" + strings.Repeat("─", span) + "╮")
-	}
-	mid := sGold.Render(" ✦ ") + sGold.Bold(true).Render(inset) + sGold.Render(" ✦ ")
-	rest := span - lipgloss.Width(mid)
-	return bc.Render("╭"+strings.Repeat("─", rest/2)) + mid + bc.Render(strings.Repeat("─", rest-rest/2)+"╮")
-}
-
-func bar(f float64, w int, fill lipgloss.Style) string {
-	if w < 4 {
-		return ""
-	}
-	f = min(max(f, 0), 1)
-	full := min(int(f*float64(w)), w-1)
-	return fill.Render(strings.Repeat("━", full)) + sAccent.Render("●") + sBarEmpty.Render(strings.Repeat("─", w-full-1))
-}
-
-// modesView shows volume, speed, after-surah mode and sleep timer, dropping
-// the least important ones when space is short.
-func (m Model) modesView(room int) string {
-	vol := fmt.Sprintf("vol %d", int(m.volume))
-	if m.muted {
-		vol = "muted"
-	}
-	parts := []string{vol, fmt.Sprintf("%.2g×", speeds[m.speedIdx]), "after: " + repeatLabel[m.opt.Store.Settings.Repeat]}
-	switch d := sleepOptions[m.sleepIdx]; {
-	case d < 0:
-		parts = append(parts, "sleep: end of surah")
-	case d > 0:
-		parts = append(parts, fmt.Sprintf("sleep %dm", max(int(time.Until(m.sleepAt).Minutes()+0.5), 0)))
-	}
-	for len(parts) > 1 && lipgloss.Width(strings.Join(parts, "   ")) > room {
-		parts = parts[1:]
-	}
-	return sDim.Render(strings.Join(parts, "   "))
-}
-
-func (m Model) footerView() string {
-	if m.status != "" {
-		st := sGold
-		if m.statusErr {
-			st = sErr
-		}
-		return ansi.Truncate(" "+st.Render(m.status), m.w, "…")
-	}
-	all := "show all"
-	if m.opt.Store.Settings.ShowAll {
-		all = "well-known only"
-	}
-	var keys [][2]string
-	switch {
-	case m.searching:
-		keys = [][2]string{{"type", "to filter"}, {"↑↓", "move"}, {"enter", "open"}, {"esc", "cancel"}}
-	case m.now != nil:
-		pause := "pause"
-		if m.now.ev.Paused {
-			pause = "resume"
-		}
-		keys = [][2]string{{"space", pause}, {"←→", "seek"}, {"n/p", "next/prev surah"}, {"/", "search"}, {"f", "favorite"}, {"a", all}, {"?", "all keys"}, {"q", "quit"}}
-	default:
-		keys = [][2]string{{"enter", "open/play"}, {"/", "search"}, {"esc", "back"}, {"f", "favorite"}, {"a", all}, {"s", "sort"}, {"?", "all keys"}, {"q", "quit"}}
+func renderUnderlineRule(w, activeStart, activeEnd int, ruleStyle, accentStyle interface{ Render(...string) string }) string {
+	if activeEnd <= activeStart || activeStart < 0 || activeEnd > w {
+		return ruleStyle.Render(strings.Repeat("─", w))
 	}
 	var b strings.Builder
-	b.WriteString(" ")
-	for _, k := range keys {
-		item := sKey.Render(k[0]) + sDim.Render(" "+k[1]+"  ")
-		if lipgloss.Width(b.String())+lipgloss.Width(item) > m.w {
-			break
-		}
-		b.WriteString(item)
+	if activeStart > 0 {
+		b.WriteString(ruleStyle.Render(strings.Repeat("─", activeStart)))
+	}
+	b.WriteString(accentStyle.Render(strings.Repeat("━", activeEnd-activeStart)))
+	if activeEnd < w {
+		b.WriteString(ruleStyle.Render(strings.Repeat("─", w-activeEnd)))
 	}
 	return b.String()
 }
 
-func (m Model) helpView() string {
-	sections := []struct {
-		title string
-		keys  [][2]string
-	}{
-		{"Browse", [][2]string{
-			{"tab / 1-4", "switch tab"}, {"↑↓ j k", "move"}, {"pgup pgdn", "page"}, {"g G", "top / bottom"},
-			{"enter", "open or play"}, {"esc", "clear search, then go back"}, {"/", "search (English, Arabic…)"},
-			{"o", "open what is playing"},
-		}},
-		{"Filters", [][2]string{
-			{"a", "all qaris / well-known complete ones"}, {"s", "sort: popular, a-z, recently updated"},
-			{"w", "cycle riwayah (Hafs, Warsh, …)"}, {"f", "add / remove favorite"}, {"A", "show / hide Arabic surah names"},
-		}},
-		{"Playback", [][2]string{
-			{"space", "pause / resume"}, {"← →", "seek 10 s (shift: 1 min)"}, {"n p", "next / previous surah"},
-			{"x", "stop"}, {"- +", "volume"}, {"m", "mute"}, {"[ ]", "slower / faster"}, {"r", "after a surah: autoplay / repeat / stop"},
-			{"t", "sleep timer: 15-60 min or end of surah"},
-		}},
-	}
-	var blocks []string
-	for _, s := range sections {
-		var b strings.Builder
-		b.WriteString(band(s.title, min(52, m.w)) + "\n")
-		for _, k := range s.keys {
-			b.WriteString("   " + sKey.Render(fmt.Sprintf("%-10s", k[0])) + " " + sText.Render(k[1]) + "\n")
+func (m Model) renderCanvas() []string {
+	ch := m.canvasHeight()
+	var lines []string
+	switch m.view {
+	case viewQariDetail:
+		lines = m.renderQariDetail(ch)
+	case viewSurahDetail:
+		lines = m.renderSurahDetail(ch)
+	default:
+		switch m.tab {
+		case tabHome:
+			lines = m.renderHome(ch)
+		case tabQaris:
+			lines = m.renderQaris(ch)
+		case tabSurahs:
+			lines = m.renderSurahs(ch)
+		case tabRadio:
+			lines = m.renderRadio(ch)
 		}
-		blocks = append(blocks, b.String())
 	}
-	var body string
-	if m.w >= 110 {
-		left := lipgloss.JoinVertical(lipgloss.Left, blocks[0], blocks[1])
-		body = lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(54).Render(left), blocks[2])
+	if len(lines) > ch {
+		lines = lines[:ch]
+	}
+	blank := strings.Repeat(" ", m.width)
+	for len(lines) < ch {
+		lines = append(lines, blank)
+	}
+	return lines
+}
+
+// renderDock renders the living bottom player frame (4 lines normal, 3 lines compact).
+func (m Model) renderDock() []string {
+	s := m.theme.Styles
+	w := m.width
+	compact := m.dockHeight() == 3
+
+	border := s.BorderIdle
+	switch {
+	case m.playKind == playRadio:
+		if m.paused {
+			border = s.BorderPause
+		} else {
+			border = s.BorderLive
+		}
+	case m.playKind == playSurah:
+		if m.paused {
+			border = s.BorderPause
+		} else {
+			border = s.BorderPlay
+		}
+	}
+
+	// Build top-border left title & right telemetry.
+	var topLeft, topRight string
+	var midLeft, midRight string
+	var barLine string
+
+	// Telemetry badges (speed, volume/mute, sleep)
+	var tele []string
+	if m.sleepMode != sleepOff {
+		tele = append(tele, s.Warn.Render("sleep "+m.sleepRemainingText()))
+	}
+	if m.playKind == playSurah && (speedSteps[m.speedIdx] != 1.0 || w >= 86) {
+		tele = append(tele, s.Subtext.Render(formatSpeed(speedSteps[m.speedIdx])))
+	}
+	if m.player != nil {
+		if m.muted {
+			tele = append(tele, s.Warn.Render("muted"))
+		} else {
+			tele = append(tele, s.Subtext.Render(fmt.Sprintf("vol %d%%", int(m.volume+0.5))))
+		}
+	}
+	topRight = strings.Join(tele, s.Muted.Render(" · "))
+
+	switch {
+	case m.player == nil:
+		topLeft = s.Warn.Render("✦ mpv not installed")
+		topRight = s.Muted.Render("browse mode")
+		midLeft = s.Subtext.Render("Install mpv to play audio; browsing and search work normally")
+		midRight = s.Key.Render("?") + " " + s.Muted.Render("keys")
+		barLine = s.Muted.Render(strings.Repeat("─", max(1, w-4)))
+
+	case m.playKind == playSurah && m.cat != nil:
+		surahName := m.cat.SurahName(m.playTrack.Surah)
+		rec := m.cat.Reciter(m.playTrack.Reciter)
+		recName := ""
+		moshafLabel := ""
+		if rec != nil {
+			recName = rec.Name
+			if mo, ok := findMoshafByID(rec, m.playTrack.Moshaf); ok {
+				moshafLabel = moshafCompactLabel(m.cat, mo)
+			}
+		}
+
+		icon := s.AccentBold.Render("▶")
+		stateNote := ""
+		if m.playLoading {
+			icon = m.spinner.View()
+			stateNote = s.Muted.Render(" loading..")
+		} else if m.paused {
+			icon = s.Accent2.Render("‖")
+			stateNote = s.Muted.Render(" paused")
+		}
+		arabicSuffix := ""
+		if !m.noArabic && w >= 84 && m.playTrack.Surah >= 1 && m.playTrack.Surah <= len(m.cat.Surahs) {
+			if ar := m.cat.Surahs[m.playTrack.Surah-1].Arabic; ar != "" {
+				arabicSuffix = "  " + s.ArabicSel.Render(fitArabic(ar, 20))
+			}
+		}
+		topLeft = icon + " " + s.TextBold.Render(fmt.Sprintf("%03d · %s", m.playTrack.Surah, surahName)) + arabicSuffix + stateNote
+
+		midLeft = s.Text.Render(recName)
+		if moshafLabel != "" {
+			midLeft += s.Muted.Render(" · ") + s.Subtext.Render(moshafLabel)
+		}
+		timeStr := formatDuration(m.playPos) + " / " + formatDuration(m.playDur)
+		if m.playDur <= 0 {
+			timeStr = formatDuration(m.playPos)
+		}
+		modeStr := repeatLabel(m.store.Settings.Repeat)
+		midRight = s.Text.Render(timeStr) + s.Muted.Render(" · ") + s.Accent2.Render(modeStr)
+
+		frac := 0.0
+		if m.playDur > 0 {
+			frac = m.playPos / m.playDur
+		}
+		barLine = renderProgressBar(frac, max(4, w-4), s.ProgFill, s.ProgHead, s.ProgEmpty)
+
+	case m.playKind == playRadio:
+		icon := s.Live.Render("● LIVE")
+		if m.playLoading {
+			icon = m.spinner.View() + " " + s.Live.Render("CONNECTING")
+		} else if m.paused {
+			icon = s.Accent2.Render("‖ PAUSED")
+		}
+		topLeft = icon + " " + s.TextBold.Render(m.playRadio.Name)
+		midLeft = s.Subtext.Render("Live Quran radio stream")
+		midRight = s.Key.Render("space") + " " + s.Muted.Render("pause · ") + s.Key.Render("x") + " " + s.Muted.Render("stop")
+		liveW := max(4, w-4)
+		tag := " " + s.Live.Render("● LIVE STREAM") + " "
+		if m.paused {
+			tag = " " + s.Accent2.Render("‖ STREAM PAUSED") + " "
+		}
+		tagW := dispWidth(tag)
+		side := max(0, (liveW-tagW)/2)
+		rem := max(0, liveW-tagW-side)
+		barLine = s.BorderIdle.Render(strings.Repeat("─", side)) + tag + s.BorderIdle.Render(strings.Repeat("─", rem))
+
+	default:
+		// Idle state: offer last listened track cleanly if available.
+		if m.store.Last != nil && m.cat != nil {
+			tr := *m.store.Last
+			surahName := m.cat.SurahName(tr.Surah)
+			recName := ""
+			if rec := m.cat.Reciter(tr.Reciter); rec != nil {
+				recName = rec.Name
+			}
+			topLeft = s.Muted.Render("✦ Last:") + " " + s.Text.Render(fmt.Sprintf("%03d · %s", tr.Surah, surahName))
+			if topRight == "" {
+				topRight = s.Key.Render("space") + " " + s.Muted.Render("resume")
+			} else {
+				topRight = s.Key.Render("space") + " " + s.Muted.Render("resume · ") + topRight
+			}
+			midLeft = s.Subtext.Render(recName)
+			frac := 0.0
+			if p := m.store.Get(tr); p != nil {
+				frac = p.Fraction()
+				if p.Finished {
+					midRight = s.Success.Render("✓ finished")
+				} else if p.Duration > 0 {
+					midRight = s.Subtext.Render(formatDuration(p.Position) + " / " + formatDuration(p.Duration))
+				}
+			}
+			barLine = renderProgressBar(frac, max(4, w-4), s.Subtext, s.Subtext, s.ProgEmpty)
+		} else {
+			topLeft = s.Muted.Render("✦ Ready to listen")
+			midLeft = s.Subtext.Render("Choose a qari, a surah, or live radio and press enter")
+			midRight = s.Key.Render("/") + " " + s.Muted.Render("search · ") + s.Key.Render("c") + " " + s.Muted.Render("theme")
+			barLine = s.BorderIdle.Render(strings.Repeat("─", max(4, w-4)))
+		}
+	}
+
+	// Bottom border: toast notification takes priority on the left, else contextual key hints.
+	var botLeft, botRight string
+	if m.toast != "" {
+		botLeft = s.Toast.Render("✦ " + m.toast)
+		if w >= 78 {
+			botRight = s.Key.Render("?") + " " + s.Muted.Render("help")
+		}
 	} else {
-		body = lipgloss.JoinVertical(lipgloss.Left, blocks...)
+		botLeft, botRight = m.dockHints(w)
 	}
-	out := "\n" + sTitle.Render(" ✦ qari "+m.opt.Version) + sDim.Render("   listen to the Quran from mp3quran.net") + "\n\n" +
-		body + "\n" +
-		sDim.Render(" Keys also work on the Arabic keyboard layout: the key position counts, not the letter.") + "\n" +
-		sDim.Render(" Progress is saved automatically. Popularity: way2quran.com, quranicaudio.com, quran.com.") + "\n" +
-		sDim.Render(" Press any key to close.")
-	lines := strings.Split(out, "\n")
-	if len(lines) > m.h { // tiny terminal: keep the top
-		lines = lines[:m.h]
+
+	if compact {
+		// 3-line compact dock for heights < 20 (e.g. 60x16, 64x18)
+		innerW := max(4, w-4)
+		var row string
+		if m.playKind == playSurah {
+			frac := 0.0
+			if m.playDur > 0 {
+				frac = m.playPos / m.playDur
+			}
+			miniW := min(14, max(6, innerW/5))
+			mini := renderMiniBar(frac, miniW, s.ProgFill, s.ProgEmpty)
+			row = rowLR(midLeft, mini+" "+midRight, innerW)
+		} else {
+			row = rowLR(midLeft, midRight, innerW)
+		}
+		return []string{
+			frameTopLine(w, topLeft, topRight, border),
+			frameContentLine(w, row, border),
+			frameBottomLine(w, botLeft, botRight, border),
+		}
 	}
-	for i, l := range lines {
-		lines[i] = ansi.Truncate(l, m.w, "…")
+
+	innerW := max(4, w-4)
+	return []string{
+		frameTopLine(w, topLeft, topRight, border),
+		frameContentLine(w, rowLR(midLeft, midRight, innerW), border),
+		frameContentLine(w, barLine, border),
+		frameBottomLine(w, botLeft, botRight, border),
 	}
-	return strings.Join(lines, "\n")
 }
 
-func (m Model) errorView() string {
-	msg := m.loadErr.Error()
-	return "\n" + sTitle.Render(" ✦ qari") + "\n\n " + sErr.Bold(true).Render("Could not load the catalog from mp3quran.net") + "\n\n " +
-		sText.Render(ansi.Wrap(msg, max(m.w-4, 20), "")) + "\n\n " +
-		sDim.Render("Some networks block mp3quran.net. Try another network or a proxy, e.g.") + "\n   " +
-		sKey.Render("qari --proxy socks5://127.0.0.1:40000") + "\n\n " + sDim.Render("q quits")
+func (m Model) dockHints(w int) (string, string) {
+	s := m.theme.Styles
+	kv := func(k, v string) string { return s.Key.Render(k) + " " + s.Muted.Render(v) }
+	sep := s.Muted.Render(" · ")
+
+	if m.playKind == playSurah {
+		if w < 78 {
+			return strings.Join([]string{kv("space", "pause"), kv("n/p", "surah"), kv("c", "theme")}, sep), kv("?", "help")
+		}
+		return strings.Join([]string{
+			kv("space", "pause"), kv("<-/->", "seek"), kv("n/p", "surah"),
+			kv("r", repeatLabel(m.store.Settings.Repeat)), kv("t", "sleep"), kv("o", "jump"),
+		}, sep), kv("c", "theme") + sep + kv("?", "help")
+	}
+	if m.playKind == playRadio {
+		return strings.Join([]string{
+			kv("space", "pause"), kv("x", "stop"), kv("+/-", "vol"), kv("m", "mute"),
+		}, sep), kv("c", "theme") + sep + kv("?", "help")
+	}
+
+	switch m.view {
+	case viewQariDetail:
+		hints := []string{kv("enter", "play"), kv("/", "search"), kv("f", "fav")}
+		if m.detailReciter != nil && len(m.detailReciter.Moshaf) > 1 {
+			hints = append(hints, kv("e", "recording"))
+		}
+		hints = append(hints, kv("esc", "back"))
+		return strings.Join(hints, sep), kv("c", "theme") + sep + kv("?", "help")
+	case viewSurahDetail:
+		return strings.Join([]string{
+			kv("enter", "play"), kv("i", "qari"), kv("f", "fav"), kv("esc", "back"),
+		}, sep), kv("c", "theme") + sep + kv("?", "help")
+	default:
+		switch m.tab {
+		case tabRadio:
+			if w < 78 {
+				return strings.Join([]string{kv("enter", "listen"), kv("/", "search"), kv("c", "theme")}, sep), kv("?", "help")
+			}
+			return strings.Join([]string{
+				kv("enter", "listen"), kv("/", "search"), kv("c", "theme"), kv("q", "quit"),
+			}, sep), kv("?", "help")
+		case tabSurahs:
+			if w < 78 {
+				return strings.Join([]string{kv("enter", "open"), kv("/", "search"), kv("A", "arabic")}, sep), kv("?", "help")
+			}
+			return strings.Join([]string{
+				kv("enter", "choose qari"), kv("/", "search"), kv("A", "arabic"), kv("c", "theme"), kv("q", "quit"),
+			}, sep), kv("?", "help")
+		default:
+			if w < 78 {
+				return strings.Join([]string{kv("enter", "open"), kv("/", "search"), kv("c", "theme")}, sep), kv("?", "help")
+			}
+			return strings.Join([]string{
+				kv("enter", "open"), kv("/", "search"), kv("f", "fav"), kv("c", "theme"), kv("q", "quit"),
+			}, sep), kv("?", "help")
+		}
+	}
 }
 
-// showArabic: the Arabic column is redundant when names are already Arabic.
-func (m Model) showArabic() bool { return m.arabic && m.cat.Lang != "ar" }
+func formatSpeed(spd float64) string {
+	if spd == float64(int(spd)) {
+		return fmt.Sprintf("%.1fx", spd)
+	}
+	return fmt.Sprintf("%.2gx", spd)
+}
+
+func shortVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" || strings.HasPrefix(v, "v0.0.0-") || len(v) > 14 {
+		return "dev"
+	}
+	return v
+}
+
+func wrapWords(text string, maxW, maxLines int) []string {
+	if maxW <= 4 {
+		return []string{trunc(text, maxW)}
+	}
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return nil
+	}
+	var lines []string
+	cur := words[0]
+	for _, wd := range words[1:] {
+		if dispWidth(cur)+1+dispWidth(wd) <= maxW {
+			cur += " " + wd
+		} else {
+			lines = append(lines, cur)
+			cur = wd
+			if len(lines) >= maxLines-1 {
+				break
+			}
+		}
+	}
+	lines = append(lines, cur)
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+	}
+	for i := range lines {
+		lines[i] = trunc(lines[i], maxW)
+	}
+	return lines
+}

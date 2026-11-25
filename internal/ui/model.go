@@ -1,15 +1,13 @@
-// Package ui is the Bubble Tea interface: tabs of searchable lists on top and
-// a player bar at the bottom.
 package ui
 
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/3mro777o/qari/internal/api"
+	"github.com/3mro777o/qari/internal/norm"
 	"github.com/3mro777o/qari/internal/player"
 	"github.com/3mro777o/qari/internal/popular"
 	"github.com/3mro777o/qari/internal/store"
@@ -18,825 +16,915 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Options configures the qari TUI model.
 type Options struct {
 	Client   *api.Client
 	Lang     string
 	Store    *store.Store
-	Player   *player.Player // nil when mpv is not installed
+	Player   *player.Player
 	Popular  map[int]popular.Entry
 	NoArabic bool
+	Theme    string
 	Version  string
+	Catalog  *api.Catalog // optional preloaded catalog (for tests)
 }
 
+type tabKind int
+
 const (
-	tabHome = iota
-	tabReciters
+	tabHome tabKind = iota
+	tabQaris
 	tabSurahs
 	tabRadio
 )
 
-var tabNames = []string{"Home", "Qaris", "Surahs", "Radio"}
-
-type screenKind int
+type viewKind int
 
 const (
-	scrHome screenKind = iota
-	scrReciters
-	scrMoshafs
-	scrSurahs
-	scrAllSurahs
-	scrRadio
+	viewTabs viewKind = iota
+	viewQariDetail
+	viewSurahDetail
 )
 
-type screen struct {
-	kind    screenKind
-	list    *listView
-	reciter *api.ReciterEntry
-	moshaf  *api.Moshaf
-	surah   int // scrReciters: only reciters who recorded this surah
+type overlayKind int
+
+const (
+	overlayNone overlayKind = iota
+	overlayHelp
+	overlayRiwayah
+	overlayRecording
+)
+
+type playKind int
+
+const (
+	playNone playKind = iota
+	playSurah
+	playRadio
+)
+
+type sleepMode int
+
+const (
+	sleepOff sleepMode = iota
+	sleep15
+	sleep30
+	sleep45
+	sleep60
+	sleepEndOfSurah
+)
+
+var speedSteps = []float64{0.75, 1.0, 1.25, 1.5, 1.75, 2.0}
+
+// listState tracks cursor, scroll offset, and search query for a single list view.
+type listState struct {
+	cursor int
+	offset int
+	query  string
 }
 
-// Row payloads.
-type (
-	moshafChoice struct {
-		r *api.ReciterEntry
-		m *api.Moshaf
+func (l *listState) clamp(n, visible int) {
+	if n <= 0 {
+		l.cursor, l.offset = 0, 0
+		return
 	}
-	surahChoice struct {
-		r *api.ReciterEntry
-		m *api.Moshaf
-		n int
+	if l.cursor < 0 {
+		l.cursor = 0
 	}
-	allSurah  int
-	resumeRow store.Track
-)
-
-type nowPlaying struct {
-	track   store.Track
-	reciter *api.ReciterEntry
-	moshaf  *api.Moshaf
-	radio   *api.Radio
-	ev      player.Event
+	if l.cursor >= n {
+		l.cursor = n - 1
+	}
+	if visible <= 0 {
+		visible = 1
+	}
+	if l.cursor < l.offset {
+		l.offset = l.cursor
+	}
+	if l.cursor >= l.offset+visible {
+		l.offset = l.cursor - visible + 1
+	}
+	maxOff := max(0, n-visible)
+	if l.offset > maxOff {
+		l.offset = maxOff
+	}
+	if l.offset < 0 {
+		l.offset = 0
+	}
 }
 
-func (n *nowPlaying) isRadio() bool { return n.radio != nil }
+func (l *listState) move(delta, n, visible int) {
+	if n <= 0 {
+		return
+	}
+	l.cursor += delta
+	l.clamp(n, visible)
+}
 
-var (
-	sortModes    = []string{"popular", "a-z", "recent"}
-	repeatModes  = []string{"next", "one", "off"}
-	repeatLabel  = map[string]string{"next": "autoplay", "one": "repeat surah", "off": "stop after surah"}
-	sleepOptions = []time.Duration{0, 15 * time.Minute, 30 * time.Minute, 45 * time.Minute, 60 * time.Minute, -1} // -1: end of surah
-	speeds       = []float64{0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2}
+// homeItem represents a single selectable row on the Home screen.
+type homeItemKind int
+
+const (
+	homeContinue homeItemKind = iota
+	homeFavorite
+	homePopular
 )
 
+type homeItem struct {
+	kind     homeItemKind
+	progress store.Progress
+	reciter  *api.ReciterEntry
+}
+
+// Model is the root Bubble Tea model for qari.
 type Model struct {
-	opt     Options
-	cat     *api.Catalog
-	loadErr error
-	spin    spinner.Model
-	w, h    int
+	client   *api.Client
+	lang     string
+	store    *store.Store
+	player   *player.Player
+	popular  map[int]popular.Entry
+	version  string
+	noArabic bool
 
-	tab       int
-	stacks    [4][]*screen
-	searching bool
-	input     textinput.Model
+	// Terminal dimensions
+	width  int
+	height int
 
-	now      *nowPlaying
-	speedIdx int
-	volume   float64
-	muted    bool
-	sleepIdx int
-	sleepAt  time.Time
-	lastSave time.Time
+	// Theme
+	themeIdx int
+	theme    Theme
 
-	status    string
-	statusErr bool
-	statusAt  time.Time
-	showHelp  bool
-	arabic    bool
+	// Loading / catalog state
+	loading     bool
+	loadErr     error
+	cat         *api.Catalog
+	radioFolded []string
+	riwayaOpts  []riwayaOption
+	spinner     spinner.Model
+
+	// Navigation
+	tab     tabKind
+	view    viewKind
+	overlay overlayKind
+
+	// Back-navigation context
+	returnTab     tabKind
+	returnView    viewKind
+	returnSurahID int
+
+	// Detail views
+	detailReciter *api.ReciterEntry
+	detailMoshaf  api.Moshaf
+	detailSurahID int
+
+	// Lists
+	homeList        listState
+	qarisList       listState
+	surahsList      listState
+	radioList       listState
+	qariDetailList  listState
+	surahDetailList listState
+
+	// Overlays
+	helpOffset      int
+	riwayaCursor    int
+	riwayaOffset    int
+	recordingCursor int
+	recordingOffset int
+
+	// Search input
+	searching   bool
+	searchInput textinput.Model
+
+	// Playback
+	playKind    playKind
+	playTrack   store.Track
+	playRadio   api.Radio
+	playPos     float64
+	playDur     float64
+	paused      bool
+	playLoading bool
+	playErr     string
+	playSeq     int
+	volume      float64
+	muted       bool
+	speedIdx    int
+	lastSave    time.Time
+
+	// Sleep timer
+	sleepMode  sleepMode
+	sleepUntil time.Time
+
+	// Status toast
+	toast   string
+	toastID int
 }
 
-type (
-	catalogMsg struct {
-		cat *api.Catalog
-		err error
-	}
-	playerMsg player.Event
-	tickMsg   time.Time
-)
+// Async messages
+type catalogLoadedMsg struct {
+	cat *api.Catalog
+	err error
+}
 
-func New(opt Options) Model {
-	in := textinput.New()
-	in.Prompt = "/ "
-	in.PromptStyle = sAccent
-	in.Placeholder = "search in English, العربية, or any listed language"
-	in.CharLimit = 64
-	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(sAccent))
-	s := &opt.Store.Settings
-	if s.Sort == "" {
-		s.Sort = "popular"
+type playerEventMsg struct {
+	ev player.Event
+}
+
+type playStartedMsg struct {
+	seq int
+	err error
+}
+
+type toastClearMsg struct {
+	id int
+}
+
+type sleepTickMsg struct {
+	now time.Time
+}
+
+// New constructs a new qari TUI model.
+func New(opts Options) Model {
+	st := opts.Store
+	if st == nil {
+		st = &store.Store{}
+		st.Favorites = map[int]bool{}
+		st.Progress = map[string]*store.Progress{}
+		st.Plays = map[int]int{}
 	}
-	if s.Repeat == "" {
-		s.Repeat = "next"
+	st.Settings.Sort = normalizeSort(st.Settings.Sort)
+	st.Settings.Repeat = normalizeRepeat(st.Settings.Repeat)
+
+	// Theme precedence: explicit CLI/env > saved setting > default (mihrab)
+	themeIdx := 0
+	if opts.Theme != "" {
+		if idx, ok := themeIndexByName(opts.Theme); ok {
+			themeIdx = idx
+		}
+	} else if st.Settings.Theme != "" {
+		if idx, ok := themeIndexByName(st.Settings.Theme); ok {
+			themeIdx = idx
+		}
 	}
-	return Model{opt: opt, spin: sp, input: in, speedIdx: 2, volume: 100, arabic: !opt.NoArabic}
+
+	noArabic := opts.NoArabic || st.Settings.NoArabic
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Spinner{
+		Frames: []string{"✦", "·", "✦", "·"},
+		FPS:    time.Second / 4,
+	}
+
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.CharLimit = 80
+
+	m := Model{
+		client:      opts.Client,
+		lang:        opts.Lang,
+		store:       st,
+		player:      opts.Player,
+		popular:     opts.Popular,
+		version:     opts.Version,
+		noArabic:    noArabic,
+		width:       100,
+		height:      30,
+		themeIdx:    themeIdx,
+		theme:       themeByIndex(themeIdx),
+		loading:     opts.Catalog == nil,
+		spinner:     sp,
+		searchInput: ti,
+		volume:      100,
+		speedIdx:    1, // 1.0x
+	}
+	m.applyThemeStyles()
+
+	if opts.Catalog != nil {
+		m.setCatalog(opts.Catalog)
+	}
+	return m
+}
+
+func (m *Model) applyThemeStyles() {
+	m.spinner.Style = m.theme.Styles.AccentBold
+	m.searchInput.TextStyle = m.theme.Styles.Text
+	m.searchInput.PlaceholderStyle = m.theme.Styles.Muted
+	m.searchInput.Cursor.Style = m.theme.Styles.Accent
+}
+
+func (m *Model) setCatalog(cat *api.Catalog) {
+	applyPopularity(cat, m.popular)
+	m.cat = cat
+	m.loading = false
+	m.loadErr = nil
+	m.radioFolded = make([]string, len(cat.Radios))
+	for i, r := range cat.Radios {
+		m.radioFolded[i] = norm.Fold(r.Name)
+	}
+	m.riwayaOpts = buildRiwayaOptions(cat)
+	// Clear saved riwayah if it no longer exists in this catalog.
+	if m.store.Settings.Rewaya != 0 {
+		found := false
+		for _, o := range m.riwayaOpts {
+			if o.ID == m.store.Settings.Rewaya {
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.store.Settings.Rewaya = 0
+		}
+	}
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.spin.Tick, tick(), m.loadCatalog()}
-	if m.opt.Player != nil {
-		cmds = append(cmds, listen(m.opt.Player))
+	var cmds []tea.Cmd
+	if m.loading && m.client != nil {
+		cmds = append(cmds, m.spinner.Tick, loadCatalogCmd(m.client, m.lang))
+	}
+	if m.player != nil {
+		cmds = append(cmds, waitPlayerEventCmd(m.player.Events))
 	}
 	return tea.Batch(cmds...)
 }
 
-func (m Model) loadCatalog() tea.Cmd {
+func loadCatalogCmd(c *api.Client, lang string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		cat, err := api.LoadCatalog(ctx, m.opt.Client, m.opt.Lang)
-		return catalogMsg{cat, err}
+		cat, err := api.LoadCatalog(ctx, c, lang)
+		return catalogLoadedMsg{cat: cat, err: err}
 	}
 }
 
-func listen(p *player.Player) tea.Cmd {
-	return func() tea.Msg { return playerMsg(<-p.Events) }
+func waitPlayerEventCmd(ch <-chan player.Event) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return playerEventMsg{ev: ev}
+	}
 }
 
-func tick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+func sleepTickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return sleepTickMsg{now: t}
+	})
 }
 
-// ---- update ----------------------------------------------------------------
+func (m *Model) setToast(msg string) tea.Cmd {
+	m.toast = msg
+	m.toastID++
+	id := m.toastID
+	return tea.Tick(1600*time.Millisecond, func(time.Time) tea.Msg {
+		return toastClearMsg{id: id}
+	})
+}
+
+func (m *Model) saveStore() {
+	if m.store != nil {
+		_ = m.store.Save()
+		m.lastSave = time.Now()
+	}
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.w, m.h = msg.Width, msg.Height
-		m.input.Width = max(m.w-6, 10)
+		m.width = max(msg.Width, 40)
+		m.height = max(msg.Height, 12)
+		m.clampActiveList()
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.cat != nil || m.loadErr != nil {
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.spin, cmd = m.spin.Update(msg)
-		return m, cmd
-
-	case catalogMsg:
-		if msg.err != nil {
-			m.loadErr = msg.err
-			return m, nil
-		}
-		m.cat = msg.cat
-		for _, r := range m.cat.Reciters {
-			if p, ok := m.opt.Popular[r.ID]; ok {
-				r.Listens, r.Known = p.Listens, p.Known
-			}
-		}
-		m.stacks = [4][]*screen{
-			{{kind: scrHome}},
-			{{kind: scrReciters}},
-			{{kind: scrAllSurahs}},
-			{{kind: scrRadio}},
-		}
-		m.refreshAll()
-		if m.opt.Client.Offline() {
-			m.flash("Offline: showing the saved catalog", true)
-		}
-		return m, nil
-
-	case playerMsg:
-		m.onPlayer(player.Event(msg))
-		return m, listen(m.opt.Player)
-
-	case tickMsg:
-		if m.sleepIdx > 0 && sleepOptions[m.sleepIdx] > 0 && !m.sleepAt.IsZero() && time.Now().After(m.sleepAt) {
-			m.sleepIdx, m.sleepAt = 0, time.Time{}
-			if m.now != nil && !m.now.ev.Paused {
-				m.opt.Player.TogglePause()
-			}
-			m.flash("Sleep timer: paused", false)
-		}
-		if time.Since(m.lastSave) > 15*time.Second {
-			m.save()
-		}
-		if m.status != "" && time.Since(m.statusAt) > 1500*time.Millisecond {
-			m.status = ""
-		}
-		return m, tick()
-
-	case tea.KeyMsg:
-		return m.onKey(msg)
-	}
-	return m, nil
-}
-
-func (m *Model) flash(s string, isErr bool) {
-	m.status, m.statusErr, m.statusAt = s, isErr, time.Now()
-}
-
-func (m *Model) save() {
-	m.lastSave = time.Now()
-	if err := m.opt.Store.Save(); err != nil {
-		m.flash("Could not save progress: "+err.Error(), true)
-	}
-}
-
-func (m *Model) top() *screen {
-	st := m.stacks[m.tab]
-	if len(st) == 0 {
-		return nil
-	}
-	return st[len(st)-1]
-}
-
-func (m *Model) push(s *screen) {
-	s.list = newList(m.rowsFor(s), "Nothing here")
-	m.stacks[m.tab] = append(m.stacks[m.tab], s)
-}
-
-func (m *Model) pop() {
-	if len(m.stacks[m.tab]) > 1 {
-		m.stacks[m.tab] = m.stacks[m.tab][:len(m.stacks[m.tab])-1]
-	}
-}
-
-// refreshAll rebuilds the rows of every open screen, e.g. after a setting,
-// favourite or progress change.
-func (m *Model) refreshAll() {
-	for t := range m.stacks {
-		for _, s := range m.stacks[t] {
-			rows := m.rowsFor(s)
-			if s.list == nil {
-				s.list = newList(rows, "Nothing here")
-			} else {
-				s.list.setRows(rows)
-			}
-		}
-	}
-}
-
-func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Keys typed faster than a frame arrive as one message; outside the search
-	// box each one is a separate command.
-	if k.Type == tea.KeyRunes && !m.searching && !k.Paste {
-		runes := make([]rune, len(k.Runes))
-		for i, r := range k.Runes {
-			runes[i] = latinKey(r)
-		}
-		k.Runes = runes
-	}
-	if k.Type == tea.KeyRunes && len(k.Runes) > 1 && !m.searching && !k.Paste {
-		var model tea.Model = m
-		var cmds []tea.Cmd
-		for _, r := range k.Runes {
+		if m.loading || m.playLoading {
 			var cmd tea.Cmd
-			model, cmd = model.(Model).onKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
-			cmds = append(cmds, cmd)
-		}
-		return model, tea.Batch(cmds...)
-	}
-	key := k.String()
-	if key == "ctrl+c" {
-		return m.quit()
-	}
-	if m.showHelp {
-		m.showHelp = false
-		return m, nil
-	}
-	if m.cat == nil {
-		if key == "q" || key == "esc" {
-			return m.quit()
-		}
-		return m, nil
-	}
-	s := m.top()
-
-	if m.searching {
-		switch key {
-		case "esc":
-			m.searching = false
-			m.input.Blur()
-			m.input.SetValue("")
-			s.list.setQuery("")
-		case "enter":
-			m.searching = false
-			m.input.Blur()
-			if s.list.selected() != nil {
-				return m.activate()
-			}
-		case "up", "ctrl+p":
-			s.list.move(-1)
-		case "down", "ctrl+n":
-			s.list.move(1)
-		default:
-			var cmd tea.Cmd
-			m.input, cmd = m.input.Update(k)
-			s.list.setQuery(m.input.Value())
+			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
 		}
 		return m, nil
+
+	case catalogLoadedMsg:
+		if msg.err != nil {
+			m.loading = false
+			m.loadErr = msg.err
+			return m, nil
+		}
+		m.setCatalog(msg.cat)
+		return m, nil
+
+	case toastClearMsg:
+		if msg.id == m.toastID {
+			m.toast = ""
+		}
+		return m, nil
+
+	case sleepTickMsg:
+		if m.sleepMode == sleepOff || m.sleepMode == sleepEndOfSurah {
+			return m, nil
+		}
+		if !msg.now.Before(m.sleepUntil) {
+			m.sleepMode = sleepOff
+			m.sleepUntil = time.Time{}
+			if m.playKind != playNone && !m.paused && m.player != nil {
+				m.player.TogglePause()
+				m.paused = true
+			}
+			m.saveStore()
+			return m, m.setToast("Sleep timer paused playback")
+		}
+		return m, sleepTickCmd()
+
+	case playStartedMsg:
+		if msg.seq != m.playSeq {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.playLoading = false
+			m.playErr = msg.err.Error()
+			return m, m.setToast("Playback failed: " + msg.err.Error())
+		}
+		return m, nil
+
+	case playerEventMsg:
+		var cmds []tea.Cmd
+		if m.player != nil {
+			cmds = append(cmds, waitPlayerEventCmd(m.player.Events))
+		}
+		if cmd := m.handlePlayerEvent(msg.ev); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case tea.KeyMsg:
+		return m.handleKey(msg)
 	}
 
-	p := m.opt.Player
-	switch key {
-	case "q":
-		return m.quit()
-	case "?":
-		m.showHelp = true
-	case "tab", "shift+tab", "1", "2", "3", "4":
-		switch key {
-		case "tab":
-			m.tab = (m.tab + 1) % len(tabNames)
-		case "shift+tab":
-			m.tab = (m.tab + len(tabNames) - 1) % len(tabNames)
-		default:
-			m.tab = int(key[0] - '1')
-		}
-		m.input.SetValue(m.top().list.query)
-	case "/":
-		m.searching = true
-		m.input.SetValue(s.list.query)
-		m.input.CursorEnd()
-		return m, m.input.Focus()
-	case "esc", "backspace":
-		if s.list.query != "" {
-			s.list.setQuery("")
-			m.input.SetValue("")
-		} else {
-			m.pop()
-			m.input.SetValue(m.top().list.query)
-		}
-	case "up", "k":
-		s.list.move(-1)
-	case "down", "j":
-		s.list.move(1)
-	case "pgup", "ctrl+u":
-		s.list.move(-m.listHeight() / 2)
-	case "pgdown", "ctrl+d":
-		s.list.move(m.listHeight() / 2)
-	case "home", "g":
-		s.list.home()
-	case "end", "G":
-		s.list.end()
-	case "enter":
-		return m.activate()
-	case "f":
-		m.toggleFavorite()
-	case "a":
-		st := &m.opt.Store.Settings
-		st.ShowAll = !st.ShowAll
-		m.refreshAll()
-		if st.ShowAll {
-			m.flash("Showing every qari", false)
-		} else {
-			m.flash("Showing well-known qaris with a complete Quran", false)
-		}
-	case "s":
-		st := &m.opt.Store.Settings
-		st.Sort = next(sortModes, st.Sort)
-		m.refreshAll()
-		s.list.home()
-		m.flash("Sort: "+st.Sort, false)
-	case "w":
-		m.cycleRewaya()
-	case "A":
-		m.arabic = !m.arabic
-	case "o":
-		m.openNowPlaying()
-	}
-
-	// Settings that also apply before anything plays.
-	switch key {
-	case "r":
-		st := &m.opt.Store.Settings
-		st.Repeat = next(repeatModes, st.Repeat)
-		m.flash("After a surah: "+repeatLabel[st.Repeat], false)
-		return m, nil
-	case "t":
-		m.cycleSleep()
-		return m, nil
-	}
-	if p == nil {
-		switch key {
-		case " ", "left", "right", "shift+left", "shift+right", "n", "p", "x", "[", "]", "-", "+", "=", "m":
-			m.flash("mpv is not installed, so nothing can play", true)
-		}
-		return m, nil
-	}
-	switch key { // mpv's own keys where they don't clash with list navigation
-	case "-", "+", "=":
-		d := 5.0
-		if key == "-" {
-			d = -5
-		}
-		m.volume = p.AddVolume(d)
-		m.flash(fmt.Sprintf("Volume %d%%", int(m.volume)), false)
-	case "m":
-		m.muted = !m.muted
-		p.SetMute(m.muted)
-		if m.muted {
-			m.flash("Muted", false)
-		} else {
-			m.flash("Sound on", false)
-		}
-	case "[", "]":
-		if key == "[" {
-			m.speedIdx = max(m.speedIdx-1, 0)
-		} else {
-			m.speedIdx = min(m.speedIdx+1, len(speeds)-1)
-		}
-		p.SetSpeed(speeds[m.speedIdx])
-		m.flash(fmt.Sprintf("Speed %.2g×", speeds[m.speedIdx]), false)
-	}
-	if m.now == nil {
-		return m, nil
-	}
-	switch key {
-	case " ":
-		p.TogglePause()
-	case "left":
-		p.Seek(-10)
-	case "right":
-		p.Seek(10)
-	case "shift+left":
-		p.Seek(-60)
-	case "shift+right":
-		p.Seek(60)
-	case "n":
-		m.step(1)
-	case "p":
-		m.step(-1)
-	case "x":
-		m.stop()
+	if m.searching {
+		var cmd tea.Cmd
+		m.searchInput, cmd = m.searchInput.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
 
-func (m *Model) cycleSleep() {
-	m.sleepIdx = (m.sleepIdx + 1) % len(sleepOptions)
-	d := sleepOptions[m.sleepIdx]
-	switch {
-	case d == 0:
-		m.sleepAt = time.Time{}
-		m.flash("Sleep timer off", false)
-	case d < 0:
-		m.sleepAt = time.Time{}
-		m.flash("Sleep timer: pause at the end of this surah", false)
-	default:
-		m.sleepAt = time.Now().Add(d)
-		m.flash(fmt.Sprintf("Sleep timer: pause in %d min", int(d.Minutes())), false)
+func (m *Model) handlePlayerEvent(ev player.Event) tea.Cmd {
+	if ev.Err != nil {
+		m.playLoading = false
+		m.playErr = ev.Err.Error()
+		return m.setToast(ev.Err.Error())
 	}
-}
+	if m.playKind == playNone {
+		return nil
+	}
+	m.playErr = ""
+	m.playLoading = ev.Loading
+	m.paused = ev.Paused
+	if ev.Pos > 0 || !ev.Loading {
+		m.playPos = ev.Pos
+	}
+	if ev.Duration > 0 {
+		m.playDur = ev.Duration
+	}
 
-func next(list []string, cur string) string {
-	for i, v := range list {
-		if v == cur {
-			return list[(i+1)%len(list)]
+	if m.playKind == playSurah && !ev.Loading && ev.Pos > 0 && ev.Duration > 0 {
+		m.store.Update(m.playTrack, ev.Pos, ev.Duration)
+		if time.Since(m.lastSave) >= 15*time.Second {
+			m.saveStore()
 		}
 	}
-	return list[0]
-}
 
-func (m Model) quit() (tea.Model, tea.Cmd) {
-	if m.opt.Player != nil {
-		m.opt.Player.Close()
-	}
-	m.opt.Store.Save()
-	return m, tea.Quit
-}
+	if ev.Ended && m.playKind == playSurah {
+		m.store.MarkFinished(m.playTrack)
+		m.saveStore()
 
-func (m *Model) cycleRewaya() {
-	ids := []int{0}
-	seen := map[int]bool{}
-	for _, r := range m.cat.Reciters {
-		for _, ms := range r.Moshaf {
-			if !seen[ms.RewayaID] {
-				seen[ms.RewayaID] = true
-				ids = append(ids, ms.RewayaID)
+		if m.sleepMode == sleepEndOfSurah {
+			m.sleepMode = sleepOff
+			m.playKind = playNone
+			m.playLoading = false
+			m.paused = false
+			return m.setToast("Sleep timer: stopped after surah")
+		}
+
+		switch normalizeRepeat(m.store.Settings.Repeat) {
+		case repeatOne:
+			return m.startSurah(m.playTrack, true)
+		case repeatNext:
+			if next, ok := m.adjacentSurah(m.playTrack, +1); ok {
+				return m.startSurah(next, true)
 			}
-		}
-	}
-	sort.Ints(ids[1:])
-	st := &m.opt.Store.Settings
-	for i, id := range ids {
-		if id == st.Rewaya {
-			st.Rewaya = ids[(i+1)%len(ids)]
-			break
-		}
-	}
-	m.refreshAll()
-	if st.Rewaya == 0 {
-		m.flash("Riwayah: all", false)
-	} else {
-		m.flash("Riwayah: "+m.cat.Riwayat[st.Rewaya], false)
-	}
-}
-
-func (m *Model) toggleFavorite() {
-	var r *api.ReciterEntry
-	if sel := m.top().list.selected(); sel != nil {
-		switch d := sel.data.(type) {
-		case *api.ReciterEntry:
-			r = d
-		case moshafChoice:
-			r = d.r
-		case surahChoice:
-			r = d.r
-		}
-	}
-	if r == nil {
-		r = m.top().reciter
-	}
-	if r == nil {
-		return
-	}
-	fav := m.opt.Store.Favorites
-	if fav[r.ID] {
-		delete(fav, r.ID)
-		m.flash("Removed from favorites: "+r.Name, false)
-	} else {
-		fav[r.ID] = true
-		m.flash("Added to favorites: "+r.Name, false)
-	}
-	m.refreshAll()
-	m.save()
-}
-
-// activate handles enter on the selected row.
-func (m Model) activate() (tea.Model, tea.Cmd) {
-	s := m.top()
-	sel := s.list.selected()
-	if sel == nil {
-		return m, nil
-	}
-	switch d := sel.data.(type) {
-	case *api.ReciterEntry:
-		if s.surah > 0 {
-			if ms := m.bestMoshaf(d, s.surah); ms != nil {
-				m.play(d, ms, s.surah)
-			}
-			return m, nil
-		}
-		m.openReciter(d)
-	case moshafChoice:
-		m.push(&screen{kind: scrSurahs, reciter: d.r, moshaf: d.m})
-		m.jumpToResume()
-	case surahChoice:
-		m.play(d.r, d.m, d.n)
-	case allSurah:
-		m.push(&screen{kind: scrReciters, surah: int(d)})
-	case *api.Radio:
-		m.playRadio(d)
-	case resumeRow:
-		r := m.cat.Reciter(d.Reciter)
-		if r == nil {
-			return m, nil
-		}
-		for i := range r.Moshaf {
-			if r.Moshaf[i].ID == d.Moshaf {
-				m.play(r, &r.Moshaf[i], d.Surah)
-			}
-		}
-	}
-	m.input.SetValue(m.top().list.query)
-	return m, nil
-}
-
-func (m *Model) openReciter(r *api.ReciterEntry) {
-	ms := m.moshafsFor(r)
-	if len(ms) == 1 {
-		m.push(&screen{kind: scrSurahs, reciter: r, moshaf: ms[0]})
-		m.jumpToResume()
-		return
-	}
-	m.push(&screen{kind: scrMoshafs, reciter: r})
-}
-
-// jumpToResume puts the cursor on the surah last played in this moshaf.
-func (m *Model) jumpToResume() {
-	s := m.top()
-	if s.kind != scrSurahs {
-		return
-	}
-	var best *store.Progress
-	for _, p := range m.opt.Store.Progress {
-		if p.Reciter == s.reciter.ID && p.Moshaf == s.moshaf.ID && (best == nil || p.Updated.After(best.Updated)) {
-			best = p
-		}
-	}
-	if best == nil {
-		return
-	}
-	n := best.Surah
-	if best.Finished {
-		n = nextSurah(s.moshaf, n, 1)
-	}
-	for i, idx := range s.list.visible {
-		if c, ok := s.list.rows[idx].data.(surahChoice); ok && c.n == n {
-			s.list.cursor = i
-		}
-	}
-}
-
-func (m *Model) openNowPlaying() {
-	if m.now == nil || m.now.isRadio() {
-		return
-	}
-	m.tab = tabReciters
-	m.stacks[m.tab] = m.stacks[m.tab][:1]
-	m.push(&screen{kind: scrSurahs, reciter: m.now.reciter, moshaf: m.now.moshaf})
-	for i, idx := range m.top().list.visible {
-		if c, ok := m.top().list.rows[idx].data.(surahChoice); ok && c.n == m.now.track.Surah {
-			m.top().list.cursor = i
-		}
-	}
-	m.input.SetValue("")
-}
-
-// moshafsFor lists a reciter's recordings, best first: the chosen riwayah
-// (Hafs when none is chosen), complete, then Murattal before other styles.
-func (m *Model) moshafsFor(r *api.ReciterEntry) []*api.Moshaf {
-	var out []*api.Moshaf
-	for i := range r.Moshaf {
-		out = append(out, &r.Moshaf[i])
-	}
-	rw := m.opt.Store.Settings.Rewaya
-	if rw == 0 {
-		rw = 1 // Hafs an Asim, the most widely recited
-	}
-	style := func(ms *api.Moshaf) int { // moshaf_type is riwayah*10 + style; 1 = Murattal
-		if s := ms.MoshafType % 10; s >= 1 {
-			return s
-		}
-		return 9
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		a, b := out[i], out[j]
-		if (a.RewayaID == rw) != (b.RewayaID == rw) {
-			return a.RewayaID == rw
-		}
-		if (a.SurahTotal >= 114) != (b.SurahTotal >= 114) {
-			return a.SurahTotal >= 114
-		}
-		return style(a) < style(b)
-	})
-	return out
-}
-
-func (m *Model) bestMoshaf(r *api.ReciterEntry, surah int) *api.Moshaf {
-	for _, ms := range m.moshafsFor(r) {
-		if ms.Surahs()[surah] {
-			return ms
+			m.playKind = playNone
+			m.playLoading = false
+			return m.setToast("Finished recording")
+		default: // repeatOff
+			m.playKind = playNone
+			m.playLoading = false
+			return m.setToast("Surah finished")
 		}
 	}
 	return nil
 }
 
-func nextSurah(ms *api.Moshaf, cur, dir int) int {
-	have := ms.Surahs()
-	for n := cur + dir; n >= 1 && n <= 114; n += dir {
-		if have[n] {
-			return n
+// startSurah begins playing track; if fromStart is true, starts at 0 instead of ResumeAt.
+func (m *Model) startSurah(tr store.Track, fromStart bool) tea.Cmd {
+	if m.player == nil {
+		return m.setToast("Install mpv to play audio")
+	}
+	if m.cat == nil {
+		return nil
+	}
+	rec := m.cat.Reciter(tr.Reciter)
+	if rec == nil {
+		return m.setToast("Qari not found in catalog")
+	}
+	moshaf, ok := findMoshafByID(rec, tr.Moshaf)
+	if !ok {
+		return m.setToast("Recording not found")
+	}
+	startAt := 0.0
+	if !fromStart {
+		startAt = m.store.ResumeAt(tr)
+	}
+	url := moshaf.URL(tr.Surah)
+	title := fmt.Sprintf("%03d %s - %s", tr.Surah, m.cat.SurahName(tr.Surah), rec.Name)
+
+	m.playKind = playSurah
+	m.playTrack = tr
+	m.playPos = startAt
+	if p := m.store.Get(tr); p != nil && p.Duration > 0 {
+		m.playDur = p.Duration
+	} else {
+		m.playDur = 0
+	}
+	m.paused = false
+	m.playLoading = true
+	m.playErr = ""
+	m.playSeq++
+	seq := m.playSeq
+
+	m.store.Plays[tr.Reciter]++
+	m.store.Last = &tr
+	m.saveStore()
+
+	p := m.player
+	speed := speedSteps[m.speedIdx]
+	muted := m.muted
+	vol := m.volume
+
+	playCmd := func() tea.Msg {
+		err := p.Play(url, startAt, title)
+		if err == nil {
+			if speed != 1.0 {
+				p.SetSpeed(speed)
+			}
+			if muted {
+				p.SetMute(true)
+			}
+			if vol != 100 {
+				p.AddVolume(0) // re-applies stored volume to newly started mpv
+			}
+		}
+		return playStartedMsg{seq: seq, err: err}
+	}
+	return tea.Batch(playCmd, m.spinner.Tick)
+}
+
+func (m *Model) startRadio(r api.Radio) tea.Cmd {
+	if m.player == nil {
+		return m.setToast("Install mpv to play audio")
+	}
+	m.playKind = playRadio
+	m.playRadio = r
+	m.playPos = 0
+	m.playDur = 0
+	m.paused = false
+	m.playLoading = true
+	m.playErr = ""
+	m.playSeq++
+	seq := m.playSeq
+
+	p := m.player
+	muted := m.muted
+	vol := m.volume
+
+	playCmd := func() tea.Msg {
+		err := p.Play(r.URL, 0, r.Name)
+		if err == nil {
+			p.SetSpeed(1.0)
+			if muted {
+				p.SetMute(true)
+			}
+			if vol != 100 {
+				p.AddVolume(0)
+			}
+		}
+		return playStartedMsg{seq: seq, err: err}
+	}
+	return tea.Batch(playCmd, m.spinner.Tick)
+}
+
+func (m *Model) adjacentSurah(tr store.Track, delta int) (store.Track, bool) {
+	if m.cat == nil {
+		return store.Track{}, false
+	}
+	rec := m.cat.Reciter(tr.Reciter)
+	if rec == nil {
+		return store.Track{}, false
+	}
+	moshaf, ok := findMoshafByID(rec, tr.Moshaf)
+	if !ok {
+		return store.Track{}, false
+	}
+	ids := moshafSortedSurahs(moshaf)
+	for i, id := range ids {
+		if id == tr.Surah {
+			ni := i + delta
+			if ni >= 0 && ni < len(ids) {
+				next := tr
+				next.Surah = ids[ni]
+				return next, true
+			}
+			return store.Track{}, false
+		}
+	}
+	return store.Track{}, false
+}
+
+func (m *Model) activeList() *listState {
+	switch m.view {
+	case viewQariDetail:
+		return &m.qariDetailList
+	case viewSurahDetail:
+		return &m.surahDetailList
+	default:
+		switch m.tab {
+		case tabHome:
+			return &m.homeList
+		case tabQaris:
+			return &m.qarisList
+		case tabSurahs:
+			return &m.surahsList
+		case tabRadio:
+			return &m.radioList
+		}
+	}
+	return &m.homeList
+}
+
+func (m *Model) homeItems() []homeItem {
+	if m.cat == nil {
+		return nil
+	}
+	q := strings.TrimSpace(m.homeList.query)
+	var items []homeItem
+
+	// 1. Continue Listening (unfinished tracks, newest first; fallback to Last if present)
+	recent := m.store.Recent(5)
+	if len(recent) == 0 && m.store.Last != nil {
+		if p := m.store.Get(*m.store.Last); p != nil {
+			recent = []store.Progress{*p}
+		} else {
+			recent = []store.Progress{{Track: *m.store.Last}}
+		}
+	}
+	for _, p := range recent {
+		rec := m.cat.Reciter(p.Reciter)
+		if rec == nil {
+			continue
+		}
+		if q != "" {
+			s := api.SurahEntry{}
+			if p.Surah >= 1 && p.Surah <= len(m.cat.Surahs) {
+				s = m.cat.Surahs[p.Surah-1]
+			}
+			if !norm.Match(rec.Search, q) && !matchSurah(s, q) {
+				continue
+			}
+		}
+		items = append(items, homeItem{kind: homeContinue, progress: p, reciter: rec})
+	}
+
+	// 2. Favorite Qaris
+	var favs []*api.ReciterEntry
+	for _, r := range m.cat.Reciters {
+		if !m.store.Favorites[r.ID] {
+			continue
+		}
+		if q != "" && !norm.Match(r.Search, q) {
+			continue
+		}
+		favs = append(favs, r)
+	}
+	sortQaris(favs, sortPopular)
+	for _, r := range favs {
+		items = append(items, homeItem{kind: homeFavorite, reciter: r})
+	}
+
+	// 3. Most Listened Qaris (curated complete qaris, or filtered if searching)
+	pop := filterQaris(m.cat, m.store.Favorites, m.store.Settings.ShowAll, m.store.Settings.Rewaya, sortPopular, q)
+	limit := max(16, m.canvasHeight()-3)
+	if q != "" {
+		limit = max(30, limit)
+	}
+	if len(pop) > limit {
+		pop = pop[:limit]
+	}
+	for _, r := range pop {
+		items = append(items, homeItem{kind: homePopular, reciter: r})
+	}
+	return items
+}
+
+func (m *Model) filteredQaris() []*api.ReciterEntry {
+	return filterQaris(m.cat, m.store.Favorites, m.store.Settings.ShowAll, m.store.Settings.Rewaya, m.store.Settings.Sort, m.qarisList.query)
+}
+
+func (m *Model) filteredSurahs() []api.SurahEntry {
+	return filterSurahs(m.cat, m.surahsList.query)
+}
+
+func (m *Model) filteredRadios() []api.Radio {
+	if m.cat == nil {
+		return nil
+	}
+	q := m.radioList.query
+	if strings.TrimSpace(q) == "" {
+		return m.cat.Radios
+	}
+	var out []api.Radio
+	for i, r := range m.cat.Radios {
+		folded := ""
+		if i < len(m.radioFolded) {
+			folded = m.radioFolded[i]
+		} else {
+			folded = norm.Fold(r.Name)
+		}
+		if norm.Match(folded, q) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func (m *Model) filteredQariDetailSurahs() []api.SurahEntry {
+	if m.cat == nil || m.detailReciter == nil {
+		return nil
+	}
+	return filterMoshafSurahs(m.cat, m.detailMoshaf, m.qariDetailList.query)
+}
+
+func (m *Model) filteredSurahDetailQaris() []surahQariItem {
+	return filterQarisForSurah(m.cat, m.store.Favorites, m.detailSurahID, m.store.Settings.ShowAll, m.store.Settings.Rewaya, m.store.Settings.Sort, m.surahDetailList.query)
+}
+
+func (m *Model) activeListCount() int {
+	switch m.view {
+	case viewQariDetail:
+		return len(m.filteredQariDetailSurahs())
+	case viewSurahDetail:
+		return len(m.filteredSurahDetailQaris())
+	default:
+		switch m.tab {
+		case tabHome:
+			return len(m.homeItems())
+		case tabQaris:
+			return len(m.filteredQaris())
+		case tabSurahs:
+			return len(m.filteredSurahs())
+		case tabRadio:
+			return len(m.filteredRadios())
 		}
 	}
 	return 0
 }
 
-// ---- playback --------------------------------------------------------------
-
-func (m *Model) play(r *api.ReciterEntry, ms *api.Moshaf, n int) {
-	if m.opt.Player == nil {
-		m.flash("mpv is not installed: install it to play audio (e.g. pacman -S mpv, apt install mpv, brew install mpv)", true)
-		return
+func (m *Model) dockHeight() int {
+	if m.height < 20 {
+		return 3
 	}
-	m.saveCurrent()
-	t := store.Track{Reciter: r.ID, Moshaf: ms.ID, Surah: n}
-	start := m.opt.Store.ResumeAt(t)
-	title := m.cat.SurahName(n) + " — " + r.Name
-	if err := m.opt.Player.Play(ms.URL(n), start, title); err != nil {
-		m.flash(err.Error(), true)
-		return
-	}
-	m.opt.Player.SetSpeed(speeds[m.speedIdx])
-	m.now = &nowPlaying{track: t, reciter: r, moshaf: ms, ev: player.Event{Loading: true, Pos: start}}
-	m.opt.Store.Plays[r.ID]++
-	m.opt.Store.Last = &t
-	if start > 0 {
-		m.flash("Resuming at "+clock(start), false)
-	}
-	m.refreshAll()
+	return 4
 }
 
-func (m *Model) playRadio(r *api.Radio) {
-	if m.opt.Player == nil {
-		m.flash("mpv is not installed, so nothing can play", true)
-		return
-	}
-	m.saveCurrent()
-	if err := m.opt.Player.Play(r.URL, 0, r.Name); err != nil {
-		m.flash(err.Error(), true)
-		return
-	}
-	m.now = &nowPlaying{radio: r, ev: player.Event{Loading: true}}
+func (m *Model) canvasHeight() int {
+	// Header = 2 lines, Dock = 3 or 4 lines.
+	return max(4, m.height-2-m.dockHeight())
 }
 
-func (m *Model) stop() {
-	m.saveCurrent()
-	m.opt.Player.Stop()
-	m.now = nil
-	m.refreshAll()
-}
-
-// saveCurrent stores the position of the playing surah before switching away.
-func (m *Model) saveCurrent() {
-	if m.now != nil && !m.now.isRadio() && m.now.ev.Pos > 0 {
-		m.opt.Store.Update(m.now.track, m.now.ev.Pos, m.now.ev.Duration)
-		m.save()
-	}
-}
-
-func (m *Model) step(dir int) {
-	if m.now == nil || m.now.isRadio() {
-		return
-	}
-	n := nextSurah(m.now.moshaf, m.now.track.Surah, dir)
-	if n == 0 {
-		m.flash("No more surahs in this recitation", false)
-		return
-	}
-	m.play(m.now.reciter, m.now.moshaf, n)
-}
-
-func (m *Model) onPlayer(ev player.Event) {
-	if m.now == nil {
-		return
-	}
-	if ev.Err != nil {
-		m.flash(ev.Err.Error(), true)
-		m.now.ev.Loading = false
-		return
-	}
-	m.now.ev = ev
-	if m.now.isRadio() {
-		return
-	}
-	if !ev.Ended {
-		if ev.Pos > 0 {
-			m.opt.Store.Update(m.now.track, ev.Pos, ev.Duration)
-		}
-		return
-	}
-	m.opt.Store.MarkFinished(m.now.track)
-	m.save()
-	if sleepOptions[m.sleepIdx] < 0 {
-		m.sleepIdx = 0
-		m.now = nil
-		m.flash("Sleep timer: stopped after the surah", false)
-		m.refreshAll()
-		return
-	}
-	switch m.opt.Store.Settings.Repeat {
-	case "one":
-		m.play(m.now.reciter, m.now.moshaf, m.now.track.Surah)
-	case "next":
-		if n := nextSurah(m.now.moshaf, m.now.track.Surah, 1); n != 0 {
-			m.play(m.now.reciter, m.now.moshaf, n)
-			return
-		}
-		m.flash("Finished the last surah of this recitation", false)
-		m.now = nil
+func (m *Model) activeVisibleRows() int {
+	ch := m.canvasHeight()
+	switch m.view {
+	case viewQariDetail:
+		return max(1, ch-3)
+	case viewSurahDetail:
+		return max(1, ch-3)
 	default:
-		m.now = nil
+		switch m.tab {
+		case tabHome:
+			return max(1, ch-2)
+		case tabQaris, tabSurahs, tabRadio:
+			return max(1, ch-2)
+		}
 	}
-	m.refreshAll()
+	return max(1, ch-2)
 }
 
-func clock(sec float64) string {
-	s := int(sec)
-	if s >= 3600 {
-		return fmt.Sprintf("%d:%02d:%02d", s/3600, s/60%60, s%60)
-	}
-	return fmt.Sprintf("%d:%02d", s/60, s%60)
+func (m *Model) clampActiveList() {
+	m.activeList().clamp(m.activeListCount(), m.activeVisibleRows())
 }
 
-func compact(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1e6)
-	case n >= 1000:
-		return fmt.Sprintf("%dk", n/1000)
+func (m *Model) openQari(rec *api.ReciterEntry, preferredMoshafID int, focusSurah int) {
+	if rec == nil || m.cat == nil {
+		return
 	}
-	return fmt.Sprint(n)
+	if m.view == viewTabs {
+		m.returnTab = m.tab
+		m.returnView = viewTabs
+	} else if m.view == viewSurahDetail {
+		m.returnView = viewSurahDetail
+		m.returnSurahID = m.detailSurahID
+	}
+
+	var moshaf api.Moshaf
+	var ok bool
+	if preferredMoshafID > 0 {
+		moshaf, ok = findMoshafByID(rec, preferredMoshafID)
+	}
+	if !ok {
+		moshaf, ok = bestMoshaf(m.cat, rec, m.store.Settings.Rewaya, focusSurah, false)
+	}
+	if !ok && len(rec.Moshaf) > 0 {
+		moshaf = rec.Moshaf[0]
+	}
+
+	m.detailReciter = rec
+	m.detailMoshaf = moshaf
+	m.view = viewQariDetail
+	m.qariDetailList = listState{}
+
+	if focusSurah > 0 {
+		surahs := m.filteredQariDetailSurahs()
+		for i, s := range surahs {
+			if s.ID == focusSurah {
+				m.qariDetailList.cursor = i
+				break
+			}
+		}
+		m.qariDetailList.clamp(len(surahs), m.activeVisibleRows())
+	}
 }
 
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
+func (m *Model) openSurah(surahID int) {
+	if m.cat == nil || surahID < 1 || surahID > 114 {
+		return
 	}
-	return fmt.Sprintf("%d %ss", n, word)
+	m.returnTab = m.tab
+	m.returnView = viewTabs
+	m.detailSurahID = surahID
+	m.view = viewSurahDetail
+	m.surahDetailList = listState{}
 }
 
-var _ = strings.TrimSpace
+func (m *Model) selectedReciterForFavorite() *api.ReciterEntry {
+	switch m.view {
+	case viewQariDetail:
+		return m.detailReciter
+	case viewSurahDetail:
+		items := m.filteredSurahDetailQaris()
+		if m.surahDetailList.cursor >= 0 && m.surahDetailList.cursor < len(items) {
+			return items[m.surahDetailList.cursor].Reciter
+		}
+	default:
+		switch m.tab {
+		case tabHome:
+			items := m.homeItems()
+			if m.homeList.cursor >= 0 && m.homeList.cursor < len(items) {
+				return items[m.homeList.cursor].reciter
+			}
+		case tabQaris:
+			items := m.filteredQaris()
+			if m.qarisList.cursor >= 0 && m.qarisList.cursor < len(items) {
+				return items[m.qarisList.cursor]
+			}
+		}
+	}
+	return nil
+}
+
+func (m *Model) sleepRemainingText() string {
+	switch m.sleepMode {
+	case sleepOff:
+		return ""
+	case sleepEndOfSurah:
+		return "end of surah"
+	default:
+		rem := time.Until(m.sleepUntil)
+		if rem < 0 {
+			rem = 0
+		}
+		return formatDuration(rem.Seconds())
+	}
+}
+
+func (m *Model) isOffline() bool {
+	return m.client != nil && m.client.Offline()
+}
