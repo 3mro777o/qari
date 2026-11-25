@@ -1,0 +1,379 @@
+{
+ "generated": "2026-11-25",
+ "sources": [
+  "way2quran.com (listens)",
+  "quranicaudio.com",
+  "quran.com"
+ ],
+ "reciters": {
+  "1": {
+   "listens": 4155
+  },
+  "10": {
+   "known": true
+  },
+  "102": {
+   "listens": 54783,
+   "known": true
+  },
+  "106": {
+   "listens": 30966,
+   "known": true
+  },
+  "107": {
+   "listens": 32722,
+   "known": true
+  },
+  "108": {
+   "listens": 5475,
+   "known": true
+  },
+  "109": {
+   "listens": 13787,
+   "known": true
+  },
+  "11": {
+   "known": true
+  },
+  "111": {
+   "listens": 5241,
+   "known": true
+  },
+  "112": {
+   "listens": 179047,
+   "known": true
+  },
+  "115": {
+   "known": true
+  },
+  "118": {
+   "listens": 70085,
+   "known": true
+  },
+  "12": {
+   "listens": 19665,
+   "known": true
+  },
+  "121": {
+   "listens": 44884,
+   "known": true
+  },
+  "123": {
+   "listens": 37684,
+   "known": true
+  },
+  "125": {
+   "listens": 13309,
+   "known": true
+  },
+  "127": {
+   "known": true
+  },
+  "13": {
+   "listens": 10000,
+   "known": true
+  },
+  "137": {
+   "listens": 35184,
+   "known": true
+  },
+  "138": {
+   "listens": 38036,
+   "known": true
+  },
+  "139": {
+   "listens": 6454,
+   "known": true
+  },
+  "16": {
+   "listens": 2849
+  },
+  "163": {
+   "listens": 2718,
+   "known": true
+  },
+  "17": {
+   "known": true
+  },
+  "178": {
+   "listens": 18117,
+   "known": true
+  },
+  "193": {
+   "listens": 2822,
+   "known": true
+  },
+  "2": {
+   "known": true
+  },
+  "20": {
+   "listens": 49724,
+   "known": true
+  },
+  "203": {
+   "listens": 5798
+  },
+  "205": {
+   "listens": 4226,
+   "known": true
+  },
+  "21": {
+   "known": true
+  },
+  "21148": {
+   "listens": 17574,
+   "known": true
+  },
+  "21181": {
+   "listens": 5014
+  },
+  "21182": {
+   "listens": 33277,
+   "known": true
+  },
+  "21184": {
+   "listens": 26310,
+   "known": true
+  },
+  "21188": {
+   "listens": 5275,
+   "known": true
+  },
+  "21200": {
+   "listens": 8389,
+   "known": true
+  },
+  "21201": {
+   "listens": 23817,
+   "known": true
+  },
+  "21203": {
+   "listens": 9383
+  },
+  "217": {
+   "listens": 23921,
+   "known": true
+  },
+  "219": {
+   "listens": 4255,
+   "known": true
+  },
+  "221": {
+   "listens": 9016,
+   "known": true
+  },
+  "225": {
+   "listens": 3948,
+   "known": true
+  },
+  "229": {
+   "listens": 3774,
+   "known": true
+  },
+  "231": {
+   "listens": 41754,
+   "known": true
+  },
+  "236": {
+   "listens": 10880,
+   "known": true
+  },
+  "240": {
+   "listens": 10348,
+   "known": true
+  },
+  "241": {
+   "listens": 18643,
+   "known": true
+  },
+  "243": {
+   "listens": 16997,
+   "known": true
+  },
+  "244": {
+   "listens": 8443,
+   "known": true
+  },
+  "245": {
+   "listens": 64270,
+   "known": true
+  },
+  "253": {
+   "listens": 141464,
+   "known": true
+  },
+  "254": {
+   "listens": 165912,
+   "known": true
+  },
+  "255": {
+   "listens": 10124,
+   "known": true
+  },
+  "256": {
+   "listens": 3597
+  },
+  "259": {
+   "listens": 36545,
+   "known": true
+  },
+  "264": {
+   "listens": 14458,
+   "known": true
+  },
+  "265": {
+   "listens": 14029,
+   "known": true
+  },
+  "267": {
+   "listens": 7995
+  },
+  "272": {
+   "listens": 9797
+  },
+  "273": {
+   "listens": 84482,
+   "known": true
+  },
+  "278": {
+   "listens": 3461,
+   "known": true
+  },
+  "286": {
+   "listens": 23282,
+   "known": true
+  },
+  "30": {
+   "listens": 51380,
+   "known": true
+  },
+  "302": {
+   "listens": 6770
+  },
+  "305": {
+   "listens": 11948,
+   "known": true
+  },
+  "307": {
+   "listens": 38646,
+   "known": true
+  },
+  "31": {
+   "listens": 36971,
+   "known": true
+  },
+  "32": {
+   "known": true
+  },
+  "37": {
+   "listens": 3234
+  },
+  "39": {
+   "listens": 3320
+  },
+  "4": {
+   "listens": 19750,
+   "known": true
+  },
+  "41": {
+   "known": true
+  },
+  "46": {
+   "listens": 12517,
+   "known": true
+  },
+  "47": {
+   "listens": 18213,
+   "known": true
+  },
+  "49": {
+   "known": true
+  },
+  "5": {
+   "listens": 23368,
+   "known": true
+  },
+  "51": {
+   "listens": 89591,
+   "known": true
+  },
+  "54": {
+   "listens": 10068,
+   "known": true
+  },
+  "58": {
+   "listens": 6701,
+   "known": true
+  },
+  "59": {
+   "listens": 13262,
+   "known": true
+  },
+  "60": {
+   "listens": 4129,
+   "known": true
+  },
+  "61": {
+   "listens": 4146,
+   "known": true
+  },
+  "62": {
+   "listens": 9483,
+   "known": true
+  },
+  "64": {
+   "listens": 35374,
+   "known": true
+  },
+  "67": {
+   "known": true
+  },
+  "71": {
+   "listens": 4195,
+   "known": true
+  },
+  "72": {
+   "listens": 7557,
+   "known": true
+  },
+  "74": {
+   "known": true
+  },
+  "76": {
+   "listens": 21328,
+   "known": true
+  },
+  "77": {
+   "known": true
+  },
+  "78": {
+   "known": true
+  },
+  "79": {
+   "listens": 4274
+  },
+  "81": {
+   "listens": 15254,
+   "known": true
+  },
+  "86": {
+   "listens": 28742,
+   "known": true
+  },
+  "87": {
+   "known": true
+  },
+  "89": {
+   "listens": 3343,
+   "known": true
+  },
+  "9": {
+   "listens": 3904,
+   "known": true
+  },
+  "92": {
+   "listens": 154537,
+   "known": true
+  }
+ }
+}
