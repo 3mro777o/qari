@@ -222,7 +222,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if time.Since(m.lastSave) > 15*time.Second {
 			m.save()
 		}
-		if m.status != "" && time.Since(m.statusAt) > 4*time.Second {
+		if m.status != "" && time.Since(m.statusAt) > 1500*time.Millisecond {
 			m.status = ""
 		}
 		return m, tick()
