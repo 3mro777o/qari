@@ -28,7 +28,7 @@ var version = "dev"
 func main() {
 	lang := flag.String("lang", envOr("QARI_LANG", "eng"), "language for reciter and surah names (see --languages)")
 	proxy := flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
-	noArabic := flag.Bool("no-arabic", false, "hide Arabic names (for terminals without Arabic text support)")
+	noArabic := flag.Bool("no-arabic", false, "hide Arabic surah names (for terminals without Arabic text support)")
 	languages := flag.Bool("languages", false, "list the name languages the API offers and exit")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = func() {

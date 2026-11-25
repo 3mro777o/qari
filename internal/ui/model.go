@@ -35,7 +35,7 @@ const (
 	tabRadio
 )
 
-var tabNames = []string{"Home", "Reciters", "Surahs", "Radio"}
+var tabNames = []string{"Home", "Qaris", "Surahs", "Radio"}
 
 type screenKind int
 
@@ -382,9 +382,9 @@ func (m Model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		st.ShowAll = !st.ShowAll
 		m.refreshAll()
 		if st.ShowAll {
-			m.flash("Showing every reciter", false)
+			m.flash("Showing every qari", false)
 		} else {
-			m.flash("Showing well-known reciters with a complete Quran", false)
+			m.flash("Showing well-known qaris with a complete Quran", false)
 		}
 	case "s":
 		st := &m.opt.Store.Settings

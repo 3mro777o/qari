@@ -21,7 +21,7 @@ func (m Model) View() string {
 		return m.errorView()
 	}
 	if m.cat == nil {
-		return "\n  " + m.spin.View() + sText.Render(" Loading reciters from mp3quran.net…")
+		return "\n  " + m.spin.View() + sText.Render(" Loading qaris from mp3quran.net…")
 	}
 	if m.showHelp {
 		return m.helpView()
@@ -66,9 +66,9 @@ func (m Model) crumbView() string {
 		title = "Home"
 	case scrReciters:
 		list, hidden := m.filteredReciters(s.surah)
-		title = "Reciters"
+		title = "Qaris"
 		if s.surah > 0 {
-			title = "Reciters of " + m.cat.SurahName(s.surah)
+			title = "Qaris of " + m.cat.SurahName(s.surah)
 		}
 		info = fmt.Sprintf("%d shown", len(list))
 		if hidden > 0 {
@@ -89,7 +89,7 @@ func (m Model) crumbView() string {
 		}
 	case scrAllSurahs:
 		title = "Surahs"
-		info = "enter: choose a reciter"
+		info = "enter: choose a qari"
 	case scrRadio:
 		title = "Radio"
 		info = fmt.Sprintf("%d live stations", len(m.cat.Radios))
@@ -218,8 +218,8 @@ func (m Model) helpView() string {
 			{"o", "open what is playing"},
 		}},
 		{"Filters", [][2]string{
-			{"a", "all reciters / well-known complete ones"}, {"s", "sort: popular, a-z, recently updated"},
-			{"w", "cycle riwayah (Hafs, Warsh, …)"}, {"f", "add / remove favorite"}, {"A", "show / hide Arabic names"},
+			{"a", "all qaris / well-known complete ones"}, {"s", "sort: popular, a-z, recently updated"},
+			{"w", "cycle riwayah (Hafs, Warsh, …)"}, {"f", "add / remove favorite"}, {"A", "show / hide Arabic surah names"},
 		}},
 		{"Playback", [][2]string{
 			{"space", "pause / resume"}, {"← →", "seek 10 s"}, {"[ ]", "seek 1 min"}, {"n p", "next / previous surah"},

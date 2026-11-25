@@ -83,7 +83,8 @@ func (m *Model) filteredReciters(surah int) (list []*api.ReciterEntry, hidden in
 }
 
 func (m *Model) reciterRow(r *api.ReciterEntry, surah int) row {
-	rw := row{title: r.Name, arabic: r.Arabic, search: r.Search, data: r, metaSt: sDim}
+	// The Arabic name is searchable (r.Search) but not shown, to keep rows calm.
+	rw := row{title: r.Name, search: r.Search, data: r, metaSt: sDim}
 	if m.opt.Store.Favorites[r.ID] {
 		rw.mark, rw.markSt = "★", sGold
 	}
@@ -267,7 +268,7 @@ func (m *Model) homeRows() []row {
 	}
 	if len(favs) > 0 {
 		sort.Slice(favs, func(i, j int) bool { return norm.Fold(favs[i].Name) < norm.Fold(favs[j].Name) })
-		rows = append(rows, row{header: true, title: "Favorite reciters"})
+		rows = append(rows, row{header: true, title: "Favorite qaris"})
 		for _, r := range favs {
 			rows = append(rows, m.reciterRow(r, 0))
 		}
