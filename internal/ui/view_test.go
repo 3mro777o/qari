@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +20,12 @@ import (
 // that the frame is exactly the terminal size.
 func TestViewFitsScreen(t *testing.T) {
 	cache, _ := os.UserCacheDir()
-	client := api.New(nil, filepath.Join(cache, "qari"))
+	// Read-only use of the user's cache: requests always fail, so nothing is
+	// fetched or written and stale entries are served as offline data.
+	noNet := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("no network in tests")
+	})}
+	client := api.New(noNet, filepath.Join(cache, "qari"))
 	cat, err := api.LoadCatalog(context.Background(), client, "eng")
 	if err != nil {
 		t.Skip("no cached catalog:", err)
@@ -40,3 +47,7 @@ func TestViewFitsScreen(t *testing.T) {
 		}
 	}
 }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
