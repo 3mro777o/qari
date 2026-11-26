@@ -468,9 +468,10 @@ func (m *Model) syncDesktop() {
 
 // homeItem is a Home row: a surah to continue (prog set) or a qari.
 type homeItem struct {
-	prog *store.Progress
-	rec  *api.ReciterEntry
-	kind int // 0 continue, 1 favorite, 2 most listened
+	prog  *store.Progress
+	rec   *api.ReciterEntry
+	radio *api.Radio
+	kind  int // 0 continue, 1 favorite (qari or radio), 2 most listened
 }
 
 // homeSel is the selected Home row, or nil off Home.
@@ -497,19 +498,24 @@ func (m *Model) homeItems() []homeItem {
 	for i := range recent {
 		p := &recent[i]
 		if r := m.cat.Reciter(p.Reciter); r != nil && (norm.Match(r.Search, q) || len(m.surahs([]int{p.Surah}, q)) > 0) {
-			out = append(out, homeItem{p, r, 0})
+			out = append(out, homeItem{p, r, nil, 0})
 		}
 	}
 	all := m.qaris(q)
 	for _, r := range all {
 		if m.Store.Favorites[r.ID] {
-			out = append(out, homeItem{nil, r, 1})
+			out = append(out, homeItem{nil, r, nil, 1})
+		}
+	}
+	for i := range m.cat.Radios {
+		if r := &m.cat.Radios[i]; m.Store.FavRadios[r.ID] && norm.Match(m.radioFold[i], q) {
+			out = append(out, homeItem{nil, nil, r, 1})
 		}
 	}
 	limit := max(16, m.h-9)
 	for i, r := range all {
 		if i < limit {
-			out = append(out, homeItem{nil, r, 2})
+			out = append(out, homeItem{nil, r, nil, 2})
 		}
 	}
 	return out

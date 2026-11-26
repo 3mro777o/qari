@@ -41,6 +41,7 @@ func (p Progress) Fraction() float64 {
 
 type Data struct {
 	Favorites map[int]bool         `json:"favorites"` // reciter ids
+	FavRadios map[int]bool         `json:"favorite_radios"`
 	Progress  map[string]*Progress `json:"progress"`
 	Plays     map[int]int          `json:"plays"` // reciter id -> surahs started
 	Last      *Track               `json:"last,omitempty"`
@@ -74,6 +75,9 @@ func Open(path string) (*Store, error) {
 	}
 	if s.Favorites == nil {
 		s.Favorites = map[int]bool{}
+	}
+	if s.FavRadios == nil {
+		s.FavRadios = map[int]bool{}
 	}
 	if s.Progress == nil {
 		s.Progress = map[string]*Progress{}

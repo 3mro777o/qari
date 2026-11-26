@@ -62,7 +62,7 @@ func init() {
 			{[]string{"t"}, "t", "Sleep: 15-60 min / end of surah", (*Model).cycleSleep},
 		}},
 		{"LIBRARY", []binding{
-			{[]string{"f"}, "f", "Favorite qari", (*Model).favorite},
+			{[]string{"f"}, "f", "Favorite qari or radio (pins it on Home)", (*Model).favorite},
 			{[]string{"a"}, "a", "Well-known qaris / all qaris", (*Model).showAll},
 			{[]string{"s"}, "s", "Sort: popular, A-Z, updated", (*Model).cycleSort},
 			{[]string{"w"}, "w", "Filter by riwayah", nop(func(m *Model) {
@@ -267,6 +267,9 @@ func (m *Model) activate() tea.Cmd {
 			return m.playRadio(items[i])
 		}
 	default:
+		if it := m.homeSel(); it != nil && it.radio != nil {
+			return m.playRadio(*it.radio)
+		}
 		rec, mo, n := m.selected()
 		switch {
 		case rec == nil:
@@ -401,6 +404,23 @@ func (m *Model) cycleSleep(string) tea.Cmd {
 }
 
 func (m *Model) favorite(string) tea.Cmd {
+	var radio *api.Radio
+	if it := m.homeSel(); it != nil {
+		radio = it.radio
+	} else if items, i := m.radios(), m.list().cursor; m.page == pRadio && m.ov == ovNone && i < len(items) {
+		radio = &items[i]
+	}
+	if radio != nil {
+		on := !m.Store.FavRadios[radio.ID]
+		if on {
+			m.Store.FavRadios[radio.ID] = true
+		} else {
+			delete(m.Store.FavRadios, radio.ID)
+		}
+		m.save()
+		m.clamp()
+		return m.flash(map[bool]string{true: "★ On Home: ", false: "Removed from Home: "}[on] + radio.Name)
+	}
 	rec, _, _ := m.selected()
 	if rec == nil {
 		return nil

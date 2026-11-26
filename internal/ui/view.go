@@ -304,18 +304,9 @@ func (p *painter) spec() page {
 			right = s.Live.Render("● LIVE")
 		}
 		return page{
-			head: []string{lr(" "+s.AccentB.Render(fmt.Sprintf("Live Quran Radio · %d stations", len(items))), right+" ", w)},
-			n:    len(items),
-			row: func(i, w int, sel bool) string {
-				icon, right := s.Muted.Render("♪"), ""
-				if p.kind == playRadio && p.radio == items[i] {
-					icon, right = s.Live.Render("●"), s.Live.Render("● LIVE")
-					if p.paused {
-						icon, right = s.Accent2.Render("‖"), s.Accent2.Render("paused")
-					}
-				}
-				return p.row(sel, icon+"  "+p.name(sel, items[i].Name), right, w)
-			},
+			head:  []string{lr(" "+s.AccentB.Render(fmt.Sprintf("Live Quran Radio · %d stations", len(items))), right+" ", w)},
+			n:     len(items),
+			row:   func(i, w int, sel bool) string { return p.radioRow(items[i], w, sel) },
 			side:  func(i, w, h int) []string { return p.radioSide(items[i], w) },
 			split: 62, empty: [2]string{noMatch, "esc clears the search"},
 		}
@@ -323,6 +314,21 @@ func (p *painter) spec() page {
 		return p.qariPage(q)
 	}
 	return p.surahPage(q)
+}
+
+func (p *painter) radioRow(r api.Radio, w int, sel bool) string {
+	s := p.s
+	icon, right := s.Muted.Render("♪"), ""
+	if p.Store.FavRadios[r.ID] {
+		icon = s.Fav.Render("★")
+	}
+	if p.kind == playRadio && p.radio == r {
+		icon, right = s.Live.Render("●"), s.Live.Render("● LIVE")
+		if p.paused {
+			icon, right = s.Accent2.Render("‖"), s.Accent2.Render("paused")
+		}
+	}
+	return p.row(sel, icon+" "+p.name(sel, r.Name), right, w)
 }
 
 // scopeRibbon is the qari filter line: scope, sort and riwayah, and the keys
@@ -605,6 +611,8 @@ func (p *painter) home(y, h int) []string {
 			sec[0] = append(sec[0], srow{a, i}, srow{b, i})
 		case it.kind == 0:
 			sec[0] = append(sec[0], srow{p.continueRow(it, lw, sel), i})
+		case it.radio != nil:
+			sec[1] = append(sec[1], srow{p.radioRow(*it.radio, lw, sel), i})
 		case it.kind == 1:
 			sec[1] = append(sec[1], srow{p.qariRow(it.rec, 0, lw, sel), i})
 		default:
@@ -615,7 +623,7 @@ func (p *painter) home(y, h int) []string {
 	act := map[bool]string{false: "show all", true: "well-known only"}[p.Store.Settings.ShowAll]
 	heads := [3][2]string{
 		{s.AccentB.Render("✦ CONTINUE LISTENING"), s.Muted.Render(map[bool]string{true: "enter resumes"}[len(sec[0]) > 0])},
-		{s.Fav.Render("★") + " " + s.AccentB.Render("FAVORITE QARIS"), s.Muted.Render(plural(len(sec[1]), "favorite"))},
+		{s.Fav.Render("★") + " " + s.AccentB.Render("FAVORITES"), s.Muted.Render(plural(len(sec[1]), "favorite"))},
 		{s.AccentB.Render("✦ MOST LISTENED"), s.Muted.Render("a " + act)},
 	}
 	if wide {
@@ -625,7 +633,7 @@ func (p *painter) home(y, h int) []string {
 				{"   " + s.Muted.Render("Your place in every surah is saved automatically."), -1}}
 		}
 		if len(sec[1]) == 0 {
-			sec[1] = []srow{{"   " + s.Muted.Render("Press f on any qari to pin them here"), -1}}
+			sec[1] = []srow{{"   " + s.Muted.Render("Press f on a qari or radio to pin it here"), -1}}
 		}
 	}
 	var left, right []srow
@@ -649,7 +657,7 @@ func (p *painter) home(y, h int) []string {
 		for _, pr := range p.Store.Progress {
 			fin += b2i(pr.Finished)
 		}
-		right = append(right, srow{"", -1}, srow{" " + p.join(s.Muted.Render(plural(len(p.cat.Reciters), "qari")), s.Muted.Render(plural(len(p.Store.Favorites), "favorite")), s.Muted.Render(plural(fin, "surah")+" finished")), -1})
+		right = append(right, srow{"", -1}, srow{" " + p.join(s.Muted.Render(plural(len(p.cat.Reciters), "qari")), s.Muted.Render(plural(len(p.Store.Favorites)+len(p.Store.FavRadios), "favorite")), s.Muted.Render(plural(fin, "surah")+" finished")), -1})
 	}
 	return columns(p.window(left, 0, y, lw, h), p.window(right, lw+1, y, rw, h), lw, rw, h, s.Rule.Render("│"))
 }
@@ -884,12 +892,16 @@ func (p *painter) footer(w int) string {
 	case pSurahs:
 		first = []string{p.kv("enter", "choose qari"), p.kv("/", "search")}
 	case pRadio:
-		first = []string{p.kv("enter", "listen"), p.kv("/", "search")}
+		first = []string{p.kv("enter", "listen"), p.kv("f", "add to home"), p.kv("/", "search")}
 	case pDownloads:
 		first = []string{p.kv("enter", "open"), p.kv("x", "delete")}
 	case pHome:
 		if it := p.homeSel(); it != nil && it.prog != nil {
 			first = []string{p.kv("enter", "resume"), p.kv("x", "remove")}
+		} else if it != nil && it.radio != nil {
+			first = []string{p.kv("enter", "listen"), p.kv("f", "remove")}
+		} else if it != nil && p.Store.Favorites[it.rec.ID] {
+			first = []string{p.kv("enter", "open"), p.kv("f", "unfavorite")}
 		} else {
 			first = []string{p.kv("enter", "open"), p.kv("f", "favorite")}
 		}
