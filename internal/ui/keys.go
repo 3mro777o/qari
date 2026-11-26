@@ -31,10 +31,13 @@ func init() {
 	}
 	groups = []group{
 		{"NAVIGATION", []binding{
-			{[]string{"1", "2", "3", "4", "5"}, "1-5", "Go to tab: Home ... Downloads",
+			{[]string{"1", "2", "3", "4", "5", "6"}, "1-6", "Go to tab: Home ... History",
 				func(m *Model, k string) tea.Cmd { m.goTab(int(k[0] - '1')); return nil }},
 			{[]string{"tab", "shift+tab"}, "tab", "Next / previous tab (shift+tab)",
-				func(m *Model, k string) tea.Cmd { m.goTab((m.tab + 5 + sign(k, "tab")) % 5); return nil }},
+				func(m *Model, k string) tea.Cmd {
+					m.goTab((m.tab + len(tabNames) + sign(k, "tab")) % len(tabNames))
+					return nil
+				}},
 			{[]string{"j", "down", "k", "up"}, "j k", "Move down / up (arrow keys too)",
 				func(m *Model, k string) tea.Cmd { m.move(sign(k, "j", "down")); return nil }},
 			{[]string{"ctrl+d", "pgdown", "ctrl+u", "pgup"}, "ctrl+d u", "Half page down / up (pgdn pgup)",
@@ -52,8 +55,9 @@ func init() {
 				func(m *Model, k string) tea.Cmd { return m.seekBy(float64(10 * sign(k, "right"))) }},
 			{[]string{"<", ">", "shift+left", "shift+right"}, ", .", "Seek 1 minute (shift+arrows too)",
 				func(m *Model, k string) tea.Cmd { return m.seekBy(float64(60 * sign(k, ">", "shift+right"))) }},
-			{[]string{"n", "p"}, "n p", "Next / previous surah",
+			{[]string{"n", "p"}, "n p", "Next / previous surah (in random: another / back)",
 				func(m *Model, k string) tea.Cmd { return m.step(sign(k, "n")) }},
+			{[]string{"z"}, "z", "Random: play or edit recipes", nop((*Model).openRandom)},
 			{[]string{"+", "=", "-"}, "+ -", "Volume", func(m *Model, k string) tea.Cmd { return m.volume(float64(5 * sign(k, "+", "="))) }},
 			{[]string{"m"}, "m", "Mute", func(m *Model, _ string) tea.Cmd { return m.mute() }},
 			{[]string{"[", "]"}, "[ ]", "Slower / faster (0.75x-2x)",
@@ -148,9 +152,10 @@ func (m *Model) onKey(msg tea.KeyMsg) tea.Cmd {
 
 // searchKey edits the search text; keys here are raw, not layout-mapped.
 func (m *Model) searchKey(msg tea.KeyMsg) tea.Cmd {
+	q := m.query()
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.list().query = ""
+		*q = map[bool]string{true: m.typedWas}[m.ov == ovEdit]
 		fallthrough
 	case tea.KeyEnter:
 		m.searching = false
@@ -158,18 +163,44 @@ func (m *Model) searchKey(msg tea.KeyMsg) tea.Cmd {
 		m.clamp()
 		return nil
 	case tea.KeyDown, tea.KeyUp:
-		m.move(sign(msg.String(), "down"))
+		if m.ov == ovNone {
+			m.move(sign(msg.String(), "down"))
+		} else if m.ov == ovField {
+			m.pickMove(sign(msg.String(), "down"))
+		}
 		return nil
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
-	if l := m.list(); l.query != m.input.Value() {
-		*l = listState{query: m.input.Value()}
+	if v := m.input.Value(); *q != v {
+		switch m.ov {
+		case ovNone:
+			*m.list() = listState{query: v}
+		case ovField:
+			m.fieldQ, m.pick = v, listState{}
+		default:
+			*q = v
+		}
 	}
 	return cmd
 }
 
+// query is the text that typing edits: the list search, the search in a
+// recipe field, or the recipe name.
+func (m *Model) query() *string {
+	switch m.ov {
+	case ovField:
+		return &m.fieldQ
+	case ovEdit:
+		return &m.draft.Name
+	}
+	return &m.list().query
+}
+
 func (m *Model) pickKey(k string) tea.Cmd {
+	if cmd, ok := m.recipeKey(k); ok {
+		return cmd
+	}
 	switch k {
 	case "esc", "q", "h", "backspace", "w", "v", "c":
 		m.closePick()
@@ -197,6 +228,12 @@ func (m *Model) pickN() int {
 		return len(m.riwayat)
 	case ovRecording:
 		return len(m.qari.Moshaf)
+	case ovRandom:
+		return len(m.recipes())
+	case ovEdit:
+		return len(m.editFields())
+	case ovField:
+		return len(m.fieldItems())
 	}
 	return len(themes)
 }
@@ -218,14 +255,24 @@ func (m *Model) pickMove(d int) {
 }
 
 func (m *Model) closePick() {
-	if m.ov == ovTheme {
+	switch m.ov {
+	case ovTheme:
 		m.th = m.themeWas
 		m.restyle()
+	case ovField: // back to the editor, then to the recipe list
+		m.openPick(ovEdit, m.editCur)
+		return
+	case ovEdit:
+		m.openPick(ovRandom, len(builtins)+m.draftIdx)
+		return
 	}
 	m.ov = ovNone
 }
 
 func (m *Model) choose() tea.Cmd {
+	if m.ov >= ovRandom {
+		return m.recipeChoose()
+	}
 	i, ov := m.pick.cursor, m.ov
 	m.ov = ovNone
 	switch ov {
@@ -264,16 +311,25 @@ func (m *Model) activate() tea.Cmd {
 		}
 	case pRadio:
 		if items := m.radios(); i < len(items) {
+			m.recipe = nil
 			return m.playRadio(items[i])
 		}
 	default:
+		if items := m.histItems(); m.page == pHistory && i < len(items) && items[i].Radio > 0 {
+			if r, ok := m.station(items[i].Radio); ok {
+				m.recipe = nil
+				return m.playRadio(r)
+			}
+		}
 		if it := m.homeSel(); it != nil && it.radio != nil {
+			m.recipe = nil
 			return m.playRadio(*it.radio)
 		}
 		rec, mo, n := m.selected()
 		switch {
 		case rec == nil:
 		case n > 0:
+			m.recipe = nil // playing by hand ends random play
 			return m.playSurah(store.Track{Reciter: rec.ID, Moshaf: mo.ID, Surah: n}, false)
 		case m.page != pQari:
 			m.openQari(rec, mo.ID, 0)
@@ -291,8 +347,8 @@ func (m *Model) escape() {
 }
 
 func (m *Model) startSearch() {
-	m.searching = true
-	m.input.SetValue(m.list().query)
+	m.searching, m.typedWas = true, *m.query()
+	m.input.SetValue(m.typedWas)
 	m.input.CursorEnd()
 	m.input.Focus()
 }
@@ -320,6 +376,7 @@ func (m *Model) togglePause() tea.Cmd {
 			m.save()
 		}
 	case m.Store.Last != nil && m.cat.Reciter(m.Store.Last.Reciter) != nil:
+		m.recipe = nil
 		return m.playSurah(*m.Store.Last, false)
 	default:
 		return m.flash("Choose a surah or a station first")
@@ -339,6 +396,12 @@ func (m *Model) seekBy(sec float64) tea.Cmd {
 }
 
 func (m *Model) step(d int) tea.Cmd {
+	switch {
+	case m.recipe != nil && d > 0:
+		return m.shuffleNext()
+	case m.recipe != nil:
+		return m.shuffleBack()
+	}
 	if m.kind != playSurah {
 		return nil
 	}
@@ -514,6 +577,12 @@ func (m *Model) download(string) tea.Cmd {
 }
 
 func (m *Model) remove(string) tea.Cmd {
+	if items, i := m.histItems(), m.list().cursor; m.page == pHistory && m.ov == ovNone && i < len(items) {
+		m.Store.History = slices.Delete(m.Store.History, items[i].idx, items[i].idx+1)
+		m.save()
+		m.clamp()
+		return m.flash("Removed from history")
+	}
 	if it := m.homeSel(); it != nil && it.prog != nil {
 		m.Store.Forget(it.prog.Track)
 		m.clamp()

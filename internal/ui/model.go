@@ -32,18 +32,19 @@ type Options struct {
 	Catalog   *api.Catalog // preloaded (tests)
 }
 
-// Pages: the five tabs, then the two detail pages.
+// Pages: the six tabs, then the two detail pages.
 const (
 	pHome = iota
 	pQaris
 	pSurahs
 	pRadio
 	pDownloads
+	pHistory
 	pQari
 	pSurah
 )
 
-var tabNames = []string{"Home", "Qaris", "Surahs", "Radio", "Downloads"}
+var tabNames = []string{"Home", "Qaris", "Surahs", "Radio", "Downloads", "History"}
 
 const (
 	ovNone = iota
@@ -51,6 +52,9 @@ const (
 	ovRiwayah
 	ovRecording
 	ovTheme
+	ovRandom // recipe list
+	ovEdit   // recipe editor
+	ovField  // multi-select for one editor field
 )
 
 const (
@@ -94,7 +98,7 @@ type Model struct {
 	qari            *api.ReciterEntry
 	moshaf          api.Moshaf
 	surah           int
-	lists           [7]listState
+	lists           [8]listState
 	ov              int
 	pick            listState
 	helpOff         int
@@ -119,6 +123,17 @@ type Model struct {
 	confirm, armed string // a destructive or large action waits for a second press
 	drag           bool   // dragging on the progress bar
 	seekX0, seekX1 int
+
+	recipe   *store.Recipe   // active random recipe, nil when off
+	shufHist []store.Entry   // what the recipe played, for p
+	shufAt   int             // index of what plays now in shufHist
+	shufSeen map[string]bool // reciter/surah or station picked since the pool was last exhausted
+	draft    store.Recipe    // recipe being edited
+	draftIdx int             // its index in Store.Recipes, -1 when new
+	field    int             // editor field open in ovField
+	fieldQ   string          // search in ovField
+	editCur  int             // editor cursor while a field is open
+	typedWas string          // the recipe name before typing, restored by esc
 }
 
 type (
@@ -303,6 +318,9 @@ func (m *Model) onPlayer(ev player.Event) tea.Cmd {
 		m.sleep, m.kind = 0, playNone
 		return m.flash("Sleep timer: stopped after the surah")
 	}
+	if m.recipe != nil {
+		return m.shuffleNext()
+	}
 	switch mode(repeatModes, m.Store.Settings.Repeat) {
 	case 1:
 		return m.playSurah(m.track, true)
@@ -340,6 +358,7 @@ func (m *Model) playSurah(tr store.Track, fromStart bool) tea.Cmd {
 	}
 	m.Store.Plays[tr.Reciter]++
 	m.Store.Last = &tr
+	m.Store.Log(store.Entry{Time: time.Now(), Track: tr, Recipe: m.recipeName()})
 	m.save()
 	return m.play(url, start, fmt.Sprintf("%03d %s - %s", tr.Surah, m.cat.SurahName(tr.Surah), rec.Name), speeds[m.speed])
 }
@@ -349,6 +368,8 @@ func (m *Model) playRadio(r api.Radio) tea.Cmd {
 		return m.flash("Install mpv to play audio")
 	}
 	m.kind, m.radio, m.pos, m.dur = playRadio, r, 0, 0
+	m.Store.Log(store.Entry{Time: time.Now(), Radio: r.ID, Recipe: m.recipeName()})
+	m.save()
 	return m.play(r.URL, 0, r.Name, 1)
 }
 
@@ -564,6 +585,8 @@ func (m *Model) count() int {
 		return len(m.radios())
 	case pDownloads:
 		return len(m.dlItems())
+	case pHistory:
+		return len(m.histItems())
 	case pQari:
 		return len(m.surahs(surahIDs(m.moshaf), q))
 	case pSurah:
@@ -619,6 +642,13 @@ func (m *Model) selected() (rec *api.ReciterEntry, mo api.Moshaf, surah int) {
 			mo, _ = findMoshaf(rec, t.Moshaf)
 			return rec, mo, t.Surah
 		}
+	case pHistory:
+		if items := m.histItems(); i < len(items) && items[i].Radio == 0 {
+			rec = m.cat.Reciter(items[i].Reciter)
+			mo, _ = findMoshaf(rec, items[i].Moshaf)
+			return rec, mo, items[i].Surah
+		}
+		return nil, mo, 0
 	case pQari:
 		if items := m.surahs(surahIDs(m.moshaf), q); i < len(items) {
 			return m.qari, m.moshaf, items[i].ID

@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
+
+	"math/rand/v2"
 
 	"github.com/3mro777o/qari/internal/api"
 	"github.com/3mro777o/qari/internal/download"
@@ -60,6 +64,9 @@ func testModel(t *testing.T, w, h int) Model {
 	st.Favorites[1] = true
 	st.Update(store.Track{Reciter: 1, Moshaf: 101, Surah: 18}, 700, 2200)
 	st.MarkFinished(store.Track{Reciter: 2, Moshaf: 202, Surah: 1})
+	st.Log(store.Entry{Time: time.Now().AddDate(0, 0, -1), Track: store.Track{Reciter: 2, Moshaf: 202, Surah: 1}})
+	st.Log(store.Entry{Time: time.Now(), Radio: 2, Recipe: "Random radio"})
+	st.Log(store.Entry{Time: time.Now(), Track: store.Track{Reciter: 1, Moshaf: 101, Surah: 18}, Recipe: "A Very Long Recipe Name That Goes On"})
 	m := New(Options{Store: st, Catalog: testCatalog(t), Downloads: download.New(t.TempDir(), nil),
 		Popular: map[int]popular.Entry{1: {Listens: 9000, Known: true}, 2: {Listens: 5000, Known: true}}})
 	return send(m, tea.WindowSizeMsg{Width: w, Height: h})
@@ -131,13 +138,18 @@ func TestFramesExactSize(t *testing.T) {
 		"home": nil, "qaris": {"2"}, "surahs": {"3"}, "radio": {"4"}, "downloads": {"5"},
 		"qari": {"2", "enter"}, "surah": {"3", "j", "enter"}, "search": {"3", "/", "ا", "ل"},
 		"help": {"?"}, "theme": {"c", "j"}, "riwayah": {"w"}, "recording": {"2", "v"}, "empty": {"2", "/", "z", "z", "z", "enter"},
+		"random": {"z"}, "recipe": {"z", "a"}, "recipe radio": {"z", "a", "j", "enter"}, "field": {"z", "a", "j", "j", "enter"},
+		"field search": {"z", "a", "j", "j", "enter", "/", "h", "u", "s"}, "field arabic": {"z", "a", "j", "j", "enter", "/", "ح", "ص"}, "field none": {"z", "a", "j", "j", "enter", "/", "q", "q", "enter"},
+		"name": {"z", "a", "enter", "x"}, "history": {"6"}, "history search": {"6", "/", "k", "a"},
 	}
-	for _, size := range [][2]int{{60, 16}, {80, 24}, {130, 34}, {200, 60}} {
+	for _, size := range [][2]int{{60, 16}, {80, 24}, {130, 32}, {130, 34}, {200, 60}} {
 		for name, ks := range states {
 			m := send(testModel(t, size[0], size[1]), keys(ks...)...)
 			checkFrame(t, fmt.Sprintf("%s %dx%d", name, size[0], size[1]), m)
 			m.kind, m.track, m.pos, m.dur = playSurah, store.Track{Reciter: 1, Moshaf: 101, Surah: 18}, 60, 2200
 			checkFrame(t, fmt.Sprintf("%s playing %dx%d", name, size[0], size[1]), m)
+			m.recipe = &store.Recipe{Name: "Short surahs"}
+			checkFrame(t, fmt.Sprintf("%s random %dx%d", name, size[0], size[1]), m)
 		}
 	}
 }
@@ -223,5 +235,92 @@ func TestBestRecording(t *testing.T) {
 	}
 	if s := m.surahs(nil, "11"); len(s) != 6 || s[0].ID != 11 {
 		t.Fatalf("11 should find 11 first, then 110-114: %d", len(s))
+	}
+}
+
+func TestRecipePools(t *testing.T) {
+	m := testModel(t, 100, 30)
+	want := map[string]int{"Anything": 228, "Favorite qaris": 114, "Short surahs": 74, "Daily surahs": 10, "Mujawwad": 114, "Random radio": 2, "Favorite radios": 0}
+	for _, r := range builtins {
+		if n := len(m.pool(r)); n != want[r.Name] {
+			t.Errorf("%s: pool %d, want %d", r.Name, n, want[r.Name])
+		}
+	}
+	for _, e := range m.pool(builtins[4]) { // Mujawwad takes Hussary's Mujawwad, not his preferred Murattal
+		if e.Moshaf != 201 {
+			t.Fatalf("Mujawwad picked recording %d", e.Moshaf)
+		}
+	}
+	// Warsh only: Alafasy's Warsh recording; the partial qari has a Qalun one.
+	if p := m.pool(store.Recipe{Riwayat: []int{2, 3}, Surahs: []int{36}}); len(p) != 2 || p[0].Moshaf != 102 || p[1].Moshaf != 301 {
+		t.Fatalf("riwayah filter: %+v", p)
+	}
+	if got := m.emptyMsg(builtins[6]); !strings.Contains(got, "No favorite stations") {
+		t.Fatal(got)
+	}
+}
+
+func TestPickNoRepeatUntilExhausted(t *testing.T) {
+	m := testModel(t, 100, 30)
+	pool, seen := m.pool(builtins[3]), map[string]bool{}
+	got := map[store.Track]bool{}
+	for range pool {
+		got[pickFrom(pool, seen, rand.IntN).Track] = true
+	}
+	if len(got) != len(pool) {
+		t.Fatalf("%d distinct picks from a pool of %d", len(got), len(pool))
+	}
+	pickFrom(pool, seen, rand.IntN) // exhausted: starts over
+	if len(seen) != 1 {
+		t.Fatalf("seen %d after the pool ran out", len(seen))
+	}
+}
+
+func TestRecipeEditor(t *testing.T) {
+	m := testModel(t, 100, 30)
+	// New recipe: rename, choose Mujawwad as the only style, Juz Amma, save.
+	m = send(m, keys("z", "a", "enter")...)
+	m = send(m, tea.KeyMsg{Type: tea.KeyCtrlU}, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Night")}, tea.KeyMsg{Type: tea.KeyEnter})
+	m = send(m, keys("j", "j", "j", "j", "j", "enter", "j", "j", "enter", "esc", "j", "enter", "j", "enter", "esc", "s")...)
+	if len(m.Store.Recipes) != 1 || m.ov != ovRandom {
+		t.Fatalf("saved %d recipes, popup %d", len(m.Store.Recipes), m.ov)
+	}
+	r := m.Store.Recipes[0]
+	if r.Name != "Night" || !slices.Equal(r.Styles, []int{2}) || !slices.Equal(r.Surahs, span(78, 114)) || !r.Known || m.Store.Settings.Recipe != "Night" {
+		t.Fatalf("recipe %+v", r)
+	}
+	// e on a built-in edits a copy; saving it twice keeps names unique.
+	m = send(m, keys("g", "e", "s", "g", "c", "s")...)
+	if n := len(m.Store.Recipes); n != 3 || m.Store.Recipes[1].Name != "Anything copy" || m.Store.Recipes[2].Name != "Anything copy 2" {
+		t.Fatalf("copies: %+v", m.Store.Recipes)
+	}
+	// x deletes a user recipe on the second press only; built-ins stay.
+	m = send(m, keys("G", "x")...)
+	if len(m.Store.Recipes) != 3 {
+		t.Fatal("one x should only ask")
+	}
+	if m = send(m, keys("x")...); len(m.Store.Recipes) != 2 {
+		t.Fatal("second x should delete")
+	}
+	if m = send(m, keys("g", "x", "x")...); len(m.Store.Recipes) != 2 || len(m.recipes()) != len(builtins)+2 {
+		t.Fatal("built-ins cannot be deleted")
+	}
+}
+
+func TestHistoryTab(t *testing.T) {
+	m := send(testModel(t, 100, 30), keys("6")...)
+	items := m.histItems()
+	if m.page != pHistory || len(items) != 3 || items[0].Surah != 18 || items[1].Radio != 2 {
+		t.Fatalf("history %+v", items)
+	}
+	if rec, mo, n := m.selected(); rec.ID != 1 || mo.ID != 101 || n != 18 {
+		t.Fatal("history row should select its surah")
+	}
+	if m = send(m, keys("/", "k", "a", "h", "f", "enter")...); m.count() != 1 {
+		t.Fatalf("search found %d", m.count())
+	}
+	m = send(m, keys("esc", "x")...)
+	if len(m.Store.History) != 2 || m.Store.History[1].Radio != 2 {
+		t.Fatalf("x removed the wrong entry: %+v", m.Store.History)
 	}
 }

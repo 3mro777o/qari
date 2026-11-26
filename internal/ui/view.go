@@ -178,6 +178,9 @@ func (p *painter) header() []string {
 		gap, brand = 1, "✦"
 	}
 	line := " " + s.AccentB.Render(brand) + spaces(gap+1)
+	if w < 64 { // room for all six tabs
+		line = " "
+	}
 	a0, a1 := 0, 0
 	for i, name := range tabNames {
 		seg := s.Muted.Render(fmt.Sprint(i+1)) + " " + s.Sub.Render(name)
@@ -209,7 +212,7 @@ func (p *painter) header() []string {
 
 	l := p.list()
 	switch {
-	case p.searching:
+	case p.searching && p.ov == ovNone:
 		hint := s.Sub.Render(fmt.Sprint(p.count(), " matches")) + s.Muted.Render(" · enter done · esc clear ")
 		p.input.Width = max(8, w-width(hint)-6)
 		return []string{l1, lr(" "+s.AccentB.Render("/")+" "+bidi(p.input.View()), hint, w)}
@@ -227,6 +230,8 @@ func (p *painter) canvas(y, h int) []string {
 		out = p.home(y, h)
 	case pDownloads:
 		out = p.downloads(y, h)
+	case pHistory:
+		out = p.history(y, h)
 	default:
 		out = p.flat(y, h)
 	}
@@ -766,6 +771,63 @@ func (p *painter) downloads(y, h int) []string {
 	return append([]string{head, p.rule(w)}, p.window(rows, 0, y+2, w, h-2)...)
 }
 
+func (p *painter) history(y, h int) []string {
+	s, w, cur := p.s, p.w, p.list().cursor
+	items := p.histItems()
+	var rows []srow
+	day, now := "", time.Now()
+	for i, e := range items {
+		if d := dayName(e.Time, now); d != day {
+			if day != "" {
+				rows = append(rows, srow{"", -1})
+			}
+			rows, day = append(rows, srow{" " + s.AccentB.Render("✦ "+strings.ToUpper(d)), -1}), d
+		}
+		rows = append(rows, srow{p.histRow(e.Entry, w, i == cur), i})
+	}
+	if len(items) == 0 {
+		hint := []string{"Nothing played yet.", "Every surah and station you start shows up here, newest first.", "Press z to play something at random."}
+		if q := p.list().query; q != "" {
+			hint = []string{fmt.Sprintf("No matches for %q", q), "esc clears the search"}
+		}
+		rows = append(rows, srow{"", -1})
+		for i, l := range hint {
+			rows = append(rows, srow{"   " + []lipgloss.Style{s.Text, s.Sub, s.Muted}[i].Render(l), -1})
+		}
+	}
+	head := lr(" "+s.AccentB.Render("History")+s.Muted.Render(fmt.Sprintf(" · %d", len(items))), p.fitJoin(w/2, p.kv("enter", "play again"), p.kv("x", "remove"))+" ", w)
+	return append([]string{head, p.rule(w)}, p.window(rows, 0, y+2, w, h-2)...)
+}
+
+// histRow is "▶ 14:05 018 Al-Kahf · Qari" with where it was left off.
+func (p *painter) histRow(e store.Entry, w int, sel bool) string {
+	s := p.s
+	at := s.Muted.Render(e.Time.Local().Format("15:04") + " ")
+	var right []string
+	if e.Recipe != "" && w >= 70 {
+		right = append(right, s.Accent2.Render("⤮ "+trunc(bidi(e.Recipe), 18)))
+	}
+	if e.Radio > 0 {
+		r, _ := p.station(e.Radio)
+		icon := s.Muted.Render("♪")
+		if p.kind == playRadio && p.radio.ID == r.ID {
+			icon = s.Live.Render("●")
+		}
+		return p.row(sel, icon+" "+at+p.name(sel, bidi(r.Name)), p.join(append(right, s.Muted.Render("radio"))...), w)
+	}
+	pr := p.Store.Get(e.Track)
+	switch {
+	case p.kind == playSurah && p.track == e.Track && p.dur > 0:
+		right = append(right, s.AccentB.Render(clock(p.pos)+"/"+clock(p.dur)))
+	case pr != nil && pr.Finished:
+		right = append(right, s.Success.Render("✓ heard"))
+	case pr != nil && pr.Position >= 5 && pr.Duration > 0:
+		right = append(right, mini(pr.Fraction(), 6, s.Accent, s.Rule)+" "+s.Sub.Render(clock(pr.Position)+"/"+clock(pr.Duration)))
+	}
+	return p.row(sel, p.trackStatus(e.Track)+" "+at+s.Muted.Render(fmt.Sprintf("%03d ", e.Surah))+p.name(sel, p.cat.SurahName(e.Surah))+
+		s.Muted.Render(" · ")+s.Sub.Render(p.cat.Reciter(e.Reciter).Name), p.join(right...), w)
+}
+
 func (p *painter) dock(y int) []string {
 	s, w, inner := p.s, p.w, p.w-4
 	b := s.Rule
@@ -815,7 +877,11 @@ func (p *painter) dock(y int) []string {
 		if p.dur > 0 {
 			t += " / " + clock(p.dur)
 		}
-		mr = s.Text.Render(t) + s.Muted.Render(" · ") + s.Accent2.Render(repeatNames[mode(repeatModes, p.Store.Settings.Repeat)])
+		after := repeatNames[mode(repeatModes, p.Store.Settings.Repeat)]
+		if p.recipe != nil {
+			after = "⤮ " + trunc(bidi(p.recipe.Name), max(inner/4, 8))
+		}
+		mr = s.Text.Render(t) + s.Muted.Render(" · ") + s.Accent2.Render(after)
 		line = bar(frac, inner, s.Accent, s.AccentB, s.Rule)
 	case p.kind == playRadio:
 		b = map[bool]lipgloss.Style{false: s.Live, true: s.Accent2}[p.paused]
@@ -826,6 +892,9 @@ func (p *painter) dock(y int) []string {
 			icon, tag = s.Accent2.Render("‖ PAUSED"), s.Accent2.Render(" ‖ STREAM PAUSED ")
 		}
 		tl, ml = icon+" "+s.Bold.Render(p.radio.Name), s.Sub.Render("Live Quran radio")
+		if p.recipe != nil {
+			ml += s.Muted.Render(" · ") + s.Accent2.Render("⤮ "+bidi(p.recipe.Name)) + s.Muted.Render(" · ") + p.kv("n", "another")
+		}
 		side := (inner - width(tag)) / 2
 		line = p.rule(side) + tag + p.rule(inner-side-width(tag))
 	case p.Store.Last != nil && p.cat.Reciter(p.Store.Last.Reciter) != nil:
@@ -877,8 +946,13 @@ func (p *painter) footer(w int) string {
 	if p.kind != playNone { // idle: the dock's top border already says "space resume"
 		h = append(h, p.kv("space", map[bool]string{false: "pause", true: "play"}[p.paused]))
 	}
+	if p.recipe != nil {
+		h = append(h, p.kv("n/p", "random"))
+	} else if p.kind == playSurah {
+		h = append(h, p.kv("n/p", "surah"))
+	}
 	if p.kind == playSurah {
-		h = append(h, p.kv("n/p", "surah"), p.kv("<-/->", "seek"))
+		h = append(h, p.kv("<-/->", "seek"))
 	}
 	var first, last []string
 	switch p.page {
@@ -896,6 +970,8 @@ func (p *painter) footer(w int) string {
 		first = []string{p.kv("enter", "listen"), p.kv("f", "add to home"), p.kv("/", "search")}
 	case pDownloads:
 		first = []string{p.kv("enter", "open"), p.kv("x", "delete")}
+	case pHistory:
+		first = []string{p.kv("enter", "play again"), p.kv("x", "remove"), p.kv("/", "search")}
 	case pHome:
 		if it := p.homeSel(); it != nil && it.prog != nil {
 			first = []string{p.kv("enter", "resume"), p.kv("x", "remove")}
@@ -906,7 +982,7 @@ func (p *painter) footer(w int) string {
 		} else {
 			first = []string{p.kv("enter", "open"), p.kv("f", "favorite")}
 		}
-		last = []string{p.kv("/", "search"), p.kv("c", "theme")}
+		last = []string{p.kv("z", "random"), p.kv("/", "search"), p.kv("c", "theme")}
 	default:
 		first, last = []string{p.kv("enter", "open"), p.kv("/", "search")}, []string{p.kv("f", "favorite")}
 	}
@@ -939,7 +1015,9 @@ func (p *painter) overlay(base []string) []string {
 func (p *painter) picker() []string {
 	s, bw := p.s, min(p.w-4, 64)
 	var title, info, foot string
+	act, esc := "choose", "cancel"
 	var row func(i int, sel bool) (string, string)
+	var search []string
 	check := func(on bool) string { return map[bool]string{true: s.Success.Render("✓ "), false: "  "}[on] }
 	switch p.ov {
 	case ovRiwayah:
@@ -960,12 +1038,59 @@ func (p *painter) picker() []string {
 			t := themes[i]
 			return check(t.ID == p.themeWas.ID) + fit(p.name(sel, t.Name), 16) + s.Muted.Render(t.Desc), t.s.Accent.Render("●") + t.s.Accent2.Render("●") + t.s.Fav.Render("●")
 		}
+	case ovRandom:
+		rs := p.recipes()
+		title, info, act = "⤮ Random", fmt.Sprintf("%d built-in · %d yours", len(builtins), len(p.Store.Recipes)), "play"
+		row = func(i int, sel bool) (string, string) {
+			r := rs[i]
+			return check(r.Name == p.Store.Settings.Recipe) + p.name(sel, bidi(r.Name)), s.Muted.Render(trunc(p.recipeDesc(r), (bw-8)*11/20))
+		}
+	case ovEdit:
+		title, info, act, esc = "⤮ New recipe", "what it plays", "change", "back"
+		if p.draftIdx >= 0 {
+			title = "⤮ Edit recipe"
+		}
+		foot = p.kv("s", "save") + s.Muted.Render(" · ")
+		fs := p.editFields()
+		row = func(i int, sel bool) (string, string) {
+			f := fs[i]
+			if f == fSave {
+				return s.Success.Render("✓ ") + p.name(sel, "Save recipe"), s.Muted.Render("or press s")
+			}
+			k, v := p.editRow(f)
+			v = bidi(v)
+			if f == fName && p.searching {
+				p.input.Width = bw - 22
+				v = bidi(p.input.View())
+			}
+			hint := map[int]string{fName: "type", fKind: "toggle", fKnown: "toggle"}[f]
+			return "  " + fit(s.Muted.Render(k), 12) + p.name(sel, v), s.Muted.Render(cmpOr(hint, "choose"))
+		}
+	case ovField:
+		k, _ := p.editRow(p.field)
+		title, info, act, esc = "⤮ "+k, "/ search", "toggle", "back"
+		items := p.fieldItems()
+		row = func(i int, sel bool) (string, string) {
+			it := items[i]
+			return check(it.on) + p.name(sel, it.label), s.Muted.Render(it.right)
+		}
+		if p.searching || p.fieldQ != "" {
+			v := p.fieldQ
+			if p.searching {
+				p.input.Width = bw - 10
+				v = p.input.View()
+			}
+			search = []string{boxed(bw, s.AccentB.Render("/ ")+bidi(v), s.Accent)}
+		}
 	}
 	n := p.pickN()
 	vis := min(p.pickRows(), n)
 	l := p.pick
 	l.clamp(n, vis)
-	out := []string{border(bw, true, s.AccentB.Render(title), s.Muted.Render(info), s.Accent)}
+	out := append([]string{border(bw, true, s.AccentB.Render(title), s.Muted.Render(info), s.Accent)}, search...)
+	if n == 0 {
+		out = append(out, boxed(bw, s.Muted.Render("  No matches · esc clears the search"), s.Accent))
+	}
 	for i := l.offset; i < l.offset+vis; i++ {
 		rail := "  "
 		if i == l.cursor {
@@ -975,7 +1100,10 @@ func (p *painter) picker() []string {
 		p.zone(zPick, i, 1, len(out), bw-2, len(out))
 		out = append(out, boxed(bw, lr(rail+left, right, bw-4), s.Accent))
 	}
-	foot += p.kv("enter", "choose") + s.Muted.Render(" · ") + p.kv("esc", "cancel")
+	foot += p.kv("enter", act) + s.Muted.Render(" · ") + p.kv("esc", esc)
+	if p.ov == ovRandom {
+		foot = p.fitJoin(bw-12, p.kv("enter", act), p.kv("a", "new"), p.kv("e", "edit"), p.kv("c", "copy"), p.kv("x", "delete"))
+	}
 	return append(out, border(bw, false, foot, s.Muted.Render(fmt.Sprintf("%d/%d", l.cursor+1, n)), s.Accent))
 }
 

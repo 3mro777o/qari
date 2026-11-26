@@ -124,8 +124,7 @@ func (m *Model) qaris(query string) []*api.ReciterEntry {
 	st := m.Store.Settings
 	var out []*api.ReciterEntry
 	for _, r := range m.cat.Reciters {
-		known := r.Complete && (r.Known || r.Listens > 0)
-		if (st.ShowAll || known || m.Store.Favorites[r.ID]) && norm.Match(r.Search, query) &&
+		if (st.ShowAll || wellKnown(r) || m.Store.Favorites[r.ID]) && norm.Match(r.Search, query) &&
 			(st.Rewaya == 0 || slices.ContainsFunc(r.Moshaf, func(mo api.Moshaf) bool { return mo.RewayaID == st.Rewaya })) {
 			out = append(out, r)
 		}
@@ -143,6 +142,9 @@ func (m *Model) qaris(query string) []*api.ReciterEntry {
 	})
 	return out
 }
+
+// wellKnown: a complete recording by a reciter with known popularity.
+func wellKnown(r *api.ReciterEntry) bool { return r.Complete && (r.Known || r.Listens > 0) }
 
 type pick struct {
 	r  *api.ReciterEntry
