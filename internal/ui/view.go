@@ -904,7 +904,8 @@ func (p *painter) overlay(base []string) []string {
 		z := &p.zones[i]
 		z.x0, z.x1, z.y0, z.y1 = z.x0+left, z.x1+left, z.y0+top, z.y1+top
 	}
-	p.zone(zBox, 0, left, top, left+bw-1, top+len(box)-1)
+	// The box goes first: zones are searched from the end, so rows win.
+	p.zones = append([]zone{{zBox, 0, left, top, left + bw - 1, top + len(box) - 1}}, p.zones...)
 	for i, l := range box {
 		if top+i < len(base) {
 			base[top+i] = spaces(left) + l

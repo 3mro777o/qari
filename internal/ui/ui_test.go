@@ -196,6 +196,14 @@ func TestMouseTabsAndRows(t *testing.T) {
 	if m = click(m, zRow, 2); m.page != pSurah || m.surah != 3 {
 		t.Fatal("second click should open")
 	}
+	m = send(m, keys("c")...)
+	_, zones = m.paint()
+	if m = click(m, zPick, 2); m.th.ID != themes[2].ID {
+		t.Fatal("clicking a theme should preview it")
+	}
+	if m = send(m, tea.MouseMsg{X: 0, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}); m.ov != ovNone || m.th.ID != "mihrab" {
+		t.Fatal("clicking outside the picker should cancel it")
+	}
 }
 
 func TestBestRecording(t *testing.T) {
