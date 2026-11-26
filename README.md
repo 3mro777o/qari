@@ -4,13 +4,13 @@
 [mp3quran.net](https://mp3quran.net), search in English or Arabic, and pick up exactly where
 you left off. Playback runs through [mpv](https://mpv.io).
 
-![Home screen: continue listening, favorite qaris and the most listened qaris](docs/home.png)
+![Home: continue listening, favorite qaris and the most listened qaris](docs/home.png)
 
-![A qari's surah list while Ya-Sin is playing; the player frame turns gold and carries the surah name](docs/playing.png)
+![A qari's page while Al-Kahf plays; the player frame carries the surah name](docs/playing.png)
 
 ## Features
 
-- **Browse by qari or by surah.** Open a qari to see their recitations and surahs, or open
+- **Browse by qari or by surah.** Open a qari to see their recordings and surahs, or open
   a surah to see every qari who recorded it.
 - **Search in any script.** `afasy`, `العفاسي` and `العَفاسي` all find the same qari;
   `kahf`, `18` and `الكهف` all find the same surah. Diacritics and letter variants (أ/إ/ا, ة/ه, ى/ي)
@@ -21,17 +21,22 @@ you left off. Playback runs through [mpv](https://mpv.io).
   [Popularity data](#popularity-data)). Sort by name or by recently updated with `s`.
 - **Remembers your place.** Every surah keeps its position. *Continue listening* on the home
   screen resumes it, and finished surahs get a ✓.
+- **Offline listening.** Press `d` to download a surah, or a whole recording. The Downloads
+  tab shows the queue with progress and speed; downloaded surahs play from disk, with no network.
 - **Made for listening:** autoplay the next surah, repeat one surah, sleep timer (15–60 minutes
   or end of surah), speed 0.75×–2× without changing pitch, volume and mute, and riwayah filter (Hafs,
   Warsh, Qalun, …).
+- **Media keys and notifications** (Linux): qari is an MPRIS player, so keyboard media keys, bar
+  widgets and `playerctl` control it, and a notification shows each new surah.
+- **Mouse:** click tabs and rows, click a row again to open or play it, scroll with the wheel,
+  click or drag the progress bar to seek.
+- **Five themes** with a live preview picker (`c`). No theme paints a background, so translucent
+  terminals stay transparent.
 - **Favorites** and **live Quran radio** stations.
-- **Seven built-in themes** including dark manuscript palettes, a light-background theme, a 16-color
-  terminal-native theme, and a high-contrast theme — switch live with `c`, with zero full-screen
-  background fill so translucent terminals stay transparent.
-- **Media keys** work if you have [mpv-mpris](https://github.com/hoyon/mpv-mpris) installed.
-- **Works offline** for browsing: the catalog is cached for a day and used when you are offline.
 - **Name language:** qari and surah names in any of the 21 languages the API offers
   (`--lang fr`, `--lang ur`, …). The interface itself is English.
+
+![Downloads: the queue with progress and speed, and recordings saved for offline listening](docs/downloads.png)
 
 ## Install
 
@@ -58,49 +63,52 @@ Linux and macOS are supported. Windows is not yet (mpv's IPC uses named pipes th
 
 ## Usage
 
-Run `qari`. Press `?` at any time for the full list of keys. The keys follow other terminal players
-(spotify_player, termusic) and mpv: `space` pauses, `n`/`p` skip surahs, `[`/`]` change speed. Shortcuts also work on the Arabic
-keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` searches like `/`.
+Run `qari`. Press `?` at any time for every key. The keys follow mpv, cmus and vim:
+`space` pauses, `n`/`p` skip surahs, `[`/`]` change speed, `j`/`k` move. Shortcuts also work on the
+Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` searches like `/`.
 
 | Key | Action |
 | --- | --- |
-| `1`–`4`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio |
-| `↑` `↓` / `j` `k` | Move (`pgup`/`pgdn` or `ctrl+u`/`ctrl+d` to page) |
-| `g` `G` | Jump to top / bottom of list |
-| `enter` | Open, or play |
+| `1`–`5`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads |
+| `j` `k` / `↓` `↑` | Move |
+| `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Half a page down / up |
+| `g` `G` / `home` `end` | First / last row |
+| `enter` / `l` | Open, or play |
+| `esc` / `h` | Back (clears the search first) |
 | `/` | Search the current list (English, Arabic, or surah number) |
-| `esc` | Close popup, clear the search, then go back |
-| `space` | Pause / resume (or resume last surah when idle) |
-| `←` `→` | Seek ±10 seconds |
-| `shift+←` `shift+→` (or `<` `>`) | Seek ±1 minute |
-| `n` `p` | Next / previous surah in the current recording |
-| `f` | Add or remove a qari from favorites |
-| `a` | Toggle well-known complete qaris vs all qaris |
-| `s` | Sort qaris: popular, A–Z, recently updated |
-| `w` | Filter by riwayah |
-| `e` / `v` | Choose or cycle recording inside a qari's page |
-| `i` | Open a qari's full page from a surah's qari list |
+| `o` | Go to what is playing |
+| `space` | Play / pause (resumes your last surah when idle) |
+| `←` `→` | Seek 10 seconds |
+| `,` `.` (or `shift+←` `shift+→`) | Seek 1 minute |
+| `n` `p` | Next / previous surah in the recording |
+| `+` `-` | Volume |
+| `m` | Mute |
+| `[` `]` | Slower / faster (0.75×–2×) |
 | `r` | After a surah: autoplay next, repeat, or stop |
 | `t` | Sleep timer (15–60 min or end of surah) |
-| `-` `+` | Volume |
-| `m` | Mute |
-| `[` `]` | Slower / faster (0.75×–2.0×, like mpv) |
-| `x` | Stop playback |
-| `o` | Jump to what is playing |
-| `c` | Cycle color theme live (saved automatically) |
-| `A` | Show or hide Arabic surah names |
-| `?` | Show or hide the help screen |
+| `f` | Favorite qari |
+| `a` | Well-known qaris / all qaris |
+| `s` | Sort qaris: popular, A–Z, recently updated |
+| `w` | Filter by riwayah |
+| `v` | Choose a qari's recording |
+| `d` | Download the surah, or the whole recording (on a qari or in the recording list; asks to press again) |
+| `x` | Delete a download, or cancel it |
+| `c` | Color theme (moving previews it, `enter` keeps it, `esc` goes back) |
+| `?` | Help |
 | `q` / `ctrl+c` | Quit (your place is saved) |
+
+![The help screen lists every key](docs/help.png)
 
 ### Options
 
 ```text
 --lang CODE    language for qari and surah names (default eng; see --languages)
 --languages    list the languages the API offers
---theme NAME   color theme name (see --themes; overrides saved choice)
---themes       list available color themes
+--theme NAME   color theme (see --themes; overrides the saved choice)
+--themes       list the themes
 --proxy URL    send all traffic through a proxy, e.g. socks5://127.0.0.1:1080
 --no-arabic    hide the Arabic surah names
+--no-notify    no desktop notification when a surah starts
 --version      print the version
 ```
 
@@ -108,24 +116,31 @@ keyboard layout: they follow the key position, so `ض` quits like `q` and `ظ` s
 
 ### Themes
 
-Press `c` inside the app to switch themes live (your choice is remembered), or pass `--theme NAME` / `QARI_THEME`. None of the themes paint large background blocks, so translucent terminals remain transparent.
+Press `c` to pick a theme: the whole screen previews it as you move, `enter` keeps it (it is
+remembered) and `esc` goes back.
 
 | Theme | Identity |
 | --- | --- |
-| `mihrab` | **Mihrab** (default) — warm gilded gold, alabaster & sage on dark terminals |
-| `andalus` | **Al-Andalus** — Alhambra terracotta, glazed turquoise & courtyard ivory |
-| `lapis` | **Samarkand Lapis** — Timurid lapis azure, antique gold leaf & moonlit silk |
-| `madinah` | **Madinah** — luminous emerald, soft brass gold & warm pearl |
-| `parchment` | **Parchment** — light-background manuscript palette: walnut ink, ochre & forest green |
-| `ansi` | **Terminal** — uses only the terminal's 16 ANSI colors (follows your terminal theme) |
-| `contrast` | **High Contrast** — maximum contrast white, vivid gold, electric cyan & crisp borders |
+| `mihrab` | **Mihrab** (default): warm gilded gold, alabaster and sage |
+| `andalus` | **Al-Andalus**: Alhambra terracotta, glazed turquoise and ivory |
+| `lapis` | **Samarkand Lapis**: Timurid lapis azure, gold leaf and moonlit silk |
+| `madinah` | **Madinah**: luminous emerald, soft brass and warm pearl |
+| `contrast` | **High Contrast**: white, vivid gold and electric cyan |
+
+![The theme picker previewing Al-Andalus](docs/theme.png)
+
+### Media keys
+
+On Linux qari registers as `org.mpris.MediaPlayer2.qari`, so media keys, desktop widgets and
+`playerctl -p qari play-pause` work while it runs. It starts mpv without scripts, so an installed
+mpv-mpris plugin does not show a second player.
 
 ### Arabic text
 
 Qari names are searchable in Arabic but shown only in the chosen language. Arabic surah
 names show up correctly in terminals that support right-to-left text, such as Konsole,
 GNOME Terminal and other VTE terminals, WezTerm and mlterm. In terminals without it, Arabic looks
-reversed. Use `--no-arabic` or press `A` there. Searching in Arabic works in every terminal.
+reversed. Use `--no-arabic` there. Searching in Arabic works in every terminal.
 
 ### Blocked networks
 
@@ -137,7 +152,7 @@ qari --proxy socks5://127.0.0.1:1080
 ```
 
 mpv cannot use SOCKS proxies, so qari forwards the audio to mpv through a small local relay.
-Seeking still works.
+Seeking still works. Downloads go through the same proxy.
 
 ## Popularity data
 
@@ -161,6 +176,7 @@ go run ./tools/genpopular
 | --- | --- |
 | Favorites, progress, settings | `$XDG_STATE_HOME/qari/state.json` (default `~/.local/state/qari/`) |
 | Catalog cache | `$XDG_CACHE_HOME/qari/` (default `~/.cache/qari/`, `~/Library/Caches/qari/` on macOS) |
+| Downloaded surahs | `$XDG_DATA_HOME/qari/` (default `~/.local/share/qari/`) |
 
 ## Credits
 
