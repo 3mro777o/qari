@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/3mro777o/qari/internal/api"
+	"github.com/3mro777o/qari/internal/desktop"
+	"github.com/3mro777o/qari/internal/download"
 	"github.com/3mro777o/qari/internal/player"
 	"github.com/3mro777o/qari/internal/popular"
 	"github.com/3mro777o/qari/internal/store"
@@ -31,6 +33,7 @@ func main() {
 	theme := flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
 	listThemes := flag.Bool("themes", false, "list available color themes and exit")
 	noArabic := flag.Bool("no-arabic", false, "hide Arabic surah names (for terminals without Arabic text support)")
+	noNotify := flag.Bool("no-notify", false, "no desktop notification when a surah starts")
 	languages := flag.Bool("languages", false, "list the name languages the API offers and exit")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = func() {
@@ -62,7 +65,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	cacheDir, stateFile := paths()
+	cacheDir, stateFile, dataDir := paths()
 	client := api.New(httpClient, cacheDir)
 
 	if *languages {
@@ -84,6 +87,7 @@ func main() {
 	}
 
 	var p *player.Player
+	var desk *desktop.Desktop
 	if player.Available() {
 		var relay *player.Relay
 		if *proxy != "" || os.Getenv("HTTPS_PROXY") != "" || os.Getenv("https_proxy") != "" {
@@ -92,13 +96,16 @@ func main() {
 			}
 		}
 		p = player.New(relay)
+		desk = desktop.Start(!*noNotify)
+		defer desk.Close()
 	}
 
 	m := ui.New(ui.Options{
-		Client: client, Lang: *lang, Store: st, Player: p,
-		Popular: popular.Load(), NoArabic: *noArabic, Theme: *theme, Version: version,
+		Client: client, Lang: *lang, Store: st, Player: p, Desktop: desk,
+		Downloads: download.New(dataDir, httpClient),
+		Popular:   popular.Load(), NoArabic: *noArabic, Theme: *theme, Version: version,
 	})
-	prog := tea.NewProgram(m, tea.WithAltScreen())
+	prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	// Closing the terminal (SIGHUP) or a kill (SIGTERM) must not leave mpv
 	// playing on its own.
 	sig := make(chan os.Signal, 1)
@@ -130,21 +137,25 @@ func newHTTPClient(proxy string) (*http.Client, error) {
 	return &http.Client{Transport: tr}, nil
 }
 
-// paths follows the XDG layout: the catalog is cache, progress is state.
-func paths() (cacheDir, stateFile string) {
+// paths follows the XDG layout: the catalog is cache, progress is state,
+// downloaded surahs are data.
+func paths() (cacheDir, stateFile, dataDir string) {
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		cache = os.TempDir()
 	}
-	state := os.Getenv("XDG_STATE_HOME")
-	if state == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			state = filepath.Join(home, ".local", "state")
-		} else {
-			state = cache
+	home, _ := os.UserHomeDir()
+	xdg := func(env, def string) string {
+		if v := os.Getenv(env); v != "" {
+			return v
 		}
+		if home == "" {
+			return cache
+		}
+		return filepath.Join(home, def)
 	}
-	return filepath.Join(cache, "qari"), filepath.Join(state, "qari", "state.json")
+	return filepath.Join(cache, "qari"), filepath.Join(xdg("XDG_STATE_HOME", ".local/state"), "qari", "state.json"),
+		filepath.Join(xdg("XDG_DATA_HOME", ".local/share"), "qari")
 }
 
 func envOr(k, def string) string {
