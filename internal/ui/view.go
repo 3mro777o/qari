@@ -865,31 +865,40 @@ func (p *painter) dock(y int) []string {
 // footer shows the few keys that matter here.
 func (p *painter) footer(w int) string {
 	var h []string
-	if p.kind != playNone {
+	if p.kind != playNone { // idle: the dock's top border already says "space resume"
 		h = append(h, p.kv("space", map[bool]string{false: "pause", true: "play"}[p.paused]))
 	}
 	if p.kind == playSurah {
 		h = append(h, p.kv("n/p", "surah"), p.kv("<-/->", "seek"))
 	}
+	var first, last []string
 	switch p.page {
 	case pQari:
-		h = append([]string{p.kv("enter", "play"), p.kv("d", "download")}, h...)
+		first = []string{p.kv("enter", "play"), p.kv("d", "download")}
 		if len(p.qari.Moshaf) > 1 {
-			h = append(h, p.kv("v", "recording"))
+			last = append(last, p.kv("v", "recording"))
 		}
-		h = append(h, p.kv("esc", "back"))
+		last = append(last, p.kv("esc", "back"))
 	case pSurah:
-		h = append([]string{p.kv("enter", "play"), p.kv("d", "download")}, append(h, p.kv("esc", "back"))...)
+		first, last = []string{p.kv("enter", "play"), p.kv("d", "download")}, []string{p.kv("esc", "back")}
 	case pSurahs:
-		h = append([]string{p.kv("enter", "choose qari"), p.kv("/", "search")}, h...)
+		first = []string{p.kv("enter", "choose qari"), p.kv("/", "search")}
 	case pRadio:
-		h = append([]string{p.kv("enter", "listen"), p.kv("/", "search")}, h...)
+		first = []string{p.kv("enter", "listen"), p.kv("/", "search")}
 	case pDownloads:
-		h = append([]string{p.kv("enter", "open"), p.kv("x", "delete")}, h...)
+		first = []string{p.kv("enter", "open"), p.kv("x", "delete")}
+	case pHome:
+		if it := p.homeSel(); it != nil && it.prog != nil {
+			first = []string{p.kv("enter", "resume"), p.kv("x", "remove")}
+		} else {
+			first = []string{p.kv("enter", "open"), p.kv("f", "favorite")}
+		}
+		last = []string{p.kv("/", "search"), p.kv("c", "theme")}
 	default:
-		h = append([]string{p.kv("enter", "open"), p.kv("/", "search")}, append(h, p.kv("f", "favorite"), p.kv("c", "theme"))...)
+		first, last = []string{p.kv("enter", "open"), p.kv("/", "search")}, []string{p.kv("f", "favorite")}
 	}
-	return p.fitJoin(w, h...)
+	h = append(append(first, h...), last...)
+	return p.fitJoin(w, append(h, p.kv("+/-", "volume"), p.kv("tab", "next tab"))...)
 }
 
 func (p *painter) overlay(base []string) []string {

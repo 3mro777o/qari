@@ -123,6 +123,16 @@ func (s *Store) Update(t Track, pos, dur float64) {
 	s.Last = &t
 }
 
+// Forget drops t's saved position, so it leaves Continue Listening.
+func (s *Store) Forget(t Track) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.Progress, t.key())
+	if s.Last != nil && *s.Last == t {
+		s.Last = nil
+	}
+}
+
 func (s *Store) MarkFinished(t Track) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

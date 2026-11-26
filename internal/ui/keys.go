@@ -70,7 +70,7 @@ func init() {
 			})},
 			{[]string{"v"}, "v", "Choose a qari's recording", (*Model).chooseRecording},
 			{[]string{"d"}, "d", "Download surah or recording", (*Model).download},
-			{[]string{"x"}, "x", "Delete download / cancel it", (*Model).remove},
+			{[]string{"x"}, "x", "Remove: from Continue Listening, a download, or cancel it", (*Model).remove},
 		}},
 		{"APP", []binding{
 			{[]string{"c"}, "c", "Color theme (live preview)", nop(func(m *Model) {
@@ -494,6 +494,11 @@ func (m *Model) download(string) tea.Cmd {
 }
 
 func (m *Model) remove(string) tea.Cmd {
+	if it := m.homeSel(); it != nil && it.prog != nil {
+		m.Store.Forget(it.prog.Track)
+		m.clamp()
+		return m.flash("Removed from Continue Listening")
+	}
 	rec, mo, n := m.target()
 	if rec == nil {
 		return nil

@@ -473,6 +473,17 @@ type homeItem struct {
 	kind int // 0 continue, 1 favorite, 2 most listened
 }
 
+// homeSel is the selected Home row, or nil off Home.
+func (m *Model) homeSel() *homeItem {
+	if m.page != pHome || m.ov != ovNone {
+		return nil
+	}
+	if items, i := m.homeItems(), m.list().cursor; i < len(items) {
+		return &items[i]
+	}
+	return nil
+}
+
 func (m *Model) homeItems() []homeItem {
 	q := m.lists[pHome].query
 	var out []homeItem
