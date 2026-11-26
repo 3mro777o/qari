@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"slices"
 	"strings"
 	"time"
@@ -1006,7 +1007,16 @@ func (p *painter) overlay(base []string) []string {
 	p.zones = append([]zone{{zBox, 0, left, top, left + bw - 1, top + len(box) - 1}}, p.zones...)
 	for i, l := range box {
 		if top+i < len(base) {
-			base[top+i] = spaces(left) + l
+			// Keep the page visible on both sides, mending Arabic isolates cut in half.
+			b := base[top+i]
+			lp, rp := ansi.Truncate(b, left, ""), ansi.TruncateLeft(b, left+bw, "")
+			if strings.Count(lp, "\u2067") > strings.Count(lp, "\u2069") {
+				lp += "\u2069"
+			}
+			if strings.Count(rp, "\u2069") > strings.Count(rp, "\u2067") {
+				rp = strings.Replace(rp, "\u2069", "", 1)
+			}
+			base[top+i] = lp + spaces(left-width(lp)) + "\x1b[0m" + l + rp
 		}
 	}
 	return base
