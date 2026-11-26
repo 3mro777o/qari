@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -60,6 +61,9 @@ func (p *Player) start() error {
 	p.cmd = exec.Command("mpv",
 		"--idle=yes", "--no-video", "--no-terminal", "--keep-open=no",
 		"--no-resume-playback", "--save-position-on-quit=no",
+		// qari publishes its own MPRIS player; scripts such as mpv-mpris
+		// would register a second one.
+		"--load-scripts=no",
 		"--input-ipc-server="+p.sock,
 	)
 	if err := p.cmd.Start(); err != nil {
@@ -177,15 +181,15 @@ func (p *Player) emit(ev Event) {
 	}
 }
 
-// Play loads url, starting at start seconds. title is shown by media keys
-// integrations such as mpv-mpris.
+// Play loads url (or a local file), starting at start seconds. title is
+// mpv's media title.
 func (p *Player) Play(url string, start float64, title string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err := p.start(); err != nil {
 		return err
 	}
-	if p.relay != nil {
+	if p.relay != nil && strings.HasPrefix(url, "http") {
 		url = p.relay.Wrap(url)
 	}
 	p.state = Event{Loading: true}

@@ -10,7 +10,7 @@ var arabicKeys = map[rune]rune{
 	'ئ': 'z', 'ء': 'x', 'ؤ': 'c', 'ر': 'v', 'ى': 'n', 'ة': 'm', 'و': ',', 'ز': '.', 'ظ': '/',
 	// Shifted keys that differ from US: shift+a, shift+g, shift+/, shift+, and shift+.
 	'ِ': 'A', 'ﻷ': 'G', '؟': '?', ',': '<', '.': '>',
-	'١': '1', '٢': '2', '٣': '3', '٤': '4',
+	'١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5',
 }
 
 // LatinKey returns the US-layout rune for r, or r itself.
