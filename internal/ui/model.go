@@ -352,6 +352,12 @@ func (m *Model) playSurah(tr store.Track, fromStart bool) tea.Cmd {
 	if m.Downloads.Has(tr) {
 		url = m.Downloads.Path(tr)
 	}
+	// The cursor follows the playing surah (next, shuffle) when it sat on the
+	// previous one, so d and x act on what is playing.
+	if r, cmo, n := m.selected(); m.page == pQari && m.kind == playSurah && r != nil &&
+		(store.Track{Reciter: r.ID, Moshaf: cmo.ID, Surah: n}) == m.track {
+		m.openQari(rec, mo.ID, tr.Surah)
+	}
 	m.kind, m.track, m.pos, m.dur = playSurah, tr, start, 0
 	if p := m.Store.Get(tr); p != nil {
 		m.dur = p.Duration
