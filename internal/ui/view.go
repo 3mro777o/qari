@@ -42,7 +42,8 @@ func (m Model) paint() (string, []zone) {
 	if m.loading || m.loadErr != nil {
 		return fitFrame(p.splash(), m.w, m.h), nil
 	}
-	lines := append(p.header(), p.canvas(2, m.h-2-m.dockH())...)
+	lines := append(p.header(), p.canvas(2, m.h-2-m.dockH()-m.gap())...)
+	lines = append(lines, make([]string, m.gap())...)
 	lines = append(lines, p.dock(m.h-m.dockH())...)
 	if m.ov != ovNone {
 		lines = p.overlay(lines)
@@ -478,7 +479,7 @@ func (p *painter) qariPage(q string) page {
 	rec := " " + s.Accent.Render("✦") + " " + s.Bold.Render(label(p.cat, mo, false)) + s.Muted.Render(fmt.Sprintf(" (%d surahs)", mo.SurahTotal))
 	if n := len(r.Moshaf); n > 1 {
 		i := slices.IndexFunc(r.Moshaf, func(x api.Moshaf) bool { return x.ID == mo.ID })
-		rec += "  " + s.Accent2.Render(fmt.Sprintf("[%d/%d ", i+1, n)) + p.kv("v", "switch") + s.Accent2.Render("]")
+		rec += "  " + s.Muted.Render(fmt.Sprintf("recording %d of %d · ", i+1, n)) + p.kv("v", "other recordings")
 	}
 	fin := finished(p.heard(func(pr *store.Progress) bool { return pr.Reciter == r.ID && pr.Moshaf == mo.ID }))
 	l2 := lr(rec, p.saved(r.ID, mo)+mini(float64(fin)/float64(max(mo.SurahTotal, 1)), 8, s.Success, s.Rule)+" "+s.Sub.Render(fmt.Sprintf("%d/%d ", fin, mo.SurahTotal)), w)

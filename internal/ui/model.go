@@ -576,9 +576,12 @@ func (m *Model) list() *listState { return &m.lists[m.page] }
 
 func (m *Model) dockH() int { return 3 + b2i(m.h >= 20) }
 
+// gap is the blank line between the list and the player, when there is room.
+func (m *Model) gap() int { return b2i(m.h >= 20) }
+
 // listRows is how many list rows fit under the page's heading lines.
 func (m *Model) listRows() int {
-	return max(1, m.h-2-m.dockH()-2-b2i(m.page >= pQari))
+	return max(1, m.h-2-m.dockH()-m.gap()-2-b2i(m.page >= pQari))
 }
 
 func (m *Model) clamp() {
