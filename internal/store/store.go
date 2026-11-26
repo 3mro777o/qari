@@ -46,6 +46,45 @@ type Data struct {
 	Plays     map[int]int          `json:"plays"` // reciter id -> surahs started
 	Last      *Track               `json:"last,omitempty"`
 	Settings  Settings             `json:"settings"`
+	Recipes   []Recipe             `json:"recipes,omitempty"`
+	History   []Entry              `json:"history,omitempty"` // oldest first
+}
+
+// Recipe is a saved filter for random play. Empty lists mean "all".
+type Recipe struct {
+	Name     string `json:"name"`
+	Radio    bool   `json:"radio,omitempty"`
+	Qaris    string `json:"qaris,omitempty"` // "" all, "fav" favorites (stations for radio), "set" Reciters
+	Known    bool   `json:"known,omitempty"` // well-known qaris only
+	Reciters []int  `json:"reciters,omitempty"`
+	Riwayat  []int  `json:"riwayat,omitempty"`
+	Styles   []int  `json:"styles,omitempty"` // moshaf type % 10: 1 murattal, 2 mujawwad, ...
+	Surahs   []int  `json:"surahs,omitempty"`
+}
+
+// Entry is one surah or station that was started.
+type Entry struct {
+	Time time.Time `json:"time"`
+	Track
+	Radio  int    `json:"radio,omitempty"` // station id; Track is zero then
+	Recipe string `json:"recipe,omitempty"`
+}
+
+// HistoryMax is how many history entries are kept.
+const HistoryMax = 200
+
+// Log adds e to the history; restarting the latest entry only refreshes it.
+func (s *Store) Log(e Entry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n := len(s.History); n > 0 && s.History[n-1].Track == e.Track && s.History[n-1].Radio == e.Radio {
+		s.History[n-1] = e
+		return
+	}
+	s.History = append(s.History, e)
+	if len(s.History) > HistoryMax {
+		s.History = s.History[len(s.History)-HistoryMax:]
+	}
 }
 
 type Settings struct {
@@ -54,6 +93,7 @@ type Settings struct {
 	Rewaya  int    `json:"rewaya"`
 	Repeat  string `json:"repeat"`
 	Theme   string `json:"theme,omitempty"`
+	Recipe  string `json:"recipe,omitempty"` // last random recipe
 }
 
 type Store struct {
