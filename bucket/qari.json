@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_windows_amd64.zip",
+            "bin": [
+                "qari.exe"
+            ],
+            "hash": "88f1eff4bddc0de138fd4bf4d11fc984b9e1b7a9285687aac813903e1cf4f443"
+        },
+        "arm64": {
+            "url": "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_windows_arm64.zip",
+            "bin": [
+                "qari.exe"
+            ],
+            "hash": "d6511a923896f935f224cb9c20ef6b67d8a48d33aa2783187fd2521ab20f00e1"
+        }
+    },
+    "homepage": "https://github.com/3mro777o/qari",
+    "license": "MIT",
+    "description": "Terminal Quran player for mp3quran.net"
+}
