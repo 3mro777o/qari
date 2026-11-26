@@ -299,7 +299,7 @@ func (p *painter) spec() page {
 				su := items[i]
 				f, ok := heard[su.ID]
 				hot := p.kind == playSurah && p.track.Surah == su.ID
-				return p.row(sel, p.status(hot, f, ok)+" "+p.surahCell(su, sel, hot, w), p.join(s.Muted.Render(revelation(su)), s.Muted.Render(pages(su))), w)
+				return p.row(sel, p.status(hot, f, ok)+" "+p.surahCell(su, sel, hot, w), p.join(s.Muted.Render(pages(su)), s.Muted.Render(revelation(su))), w)
 			},
 			side:  func(i, w, h int) []string { return p.surahSide(items[i], heard, w, h) },
 			split: 58, empty: [2]string{noMatch, "Try an English or Arabic name, or a number 1-114"},
@@ -509,9 +509,9 @@ func (p *painter) qariPage(q string) page {
 			case pr != nil && !pr.Finished && pr.Position >= 5 && pr.Duration > 0:
 				right = mini(pr.Fraction(), 8, s.Accent, s.Rule) + " " + s.Sub.Render(clock(pr.Position)+"/"+clock(pr.Duration))
 			case pr != nil && pr.Finished:
-				right = p.join(s.Muted.Render(revelation(su)), s.Success.Render("✓ heard"))
+				right = p.join(s.Success.Render("✓ heard"), s.Muted.Render(revelation(su)))
 			default:
-				right = p.join(s.Muted.Render(revelation(su)), s.Muted.Render(map[bool]string{true: pages(su)}[w >= 74]))
+				right = p.join(s.Muted.Render(map[bool]string{true: pages(su)}[w >= 74]), s.Muted.Render(revelation(su)))
 			}
 			if p.Downloads.Has(t) {
 				right = p.join(s.Accent2.Render("↓"), right)
@@ -549,7 +549,7 @@ func (p *painter) surahPage(q string) page {
 	su := p.cat.Surahs[p.surah-1]
 	items := p.qarisFor(p.surah, q)
 	l1 := lr(" "+s.Muted.Render("‹ Surahs › ")+s.AccentB.Render(fmt.Sprintf("%03d · %s", su.ID, su.Name))+"  "+p.arabic(su.Arabic, 20, true),
-		p.join(s.Muted.Render(revelation(su)), s.Muted.Render(pages(su)), p.kv("esc", "back"))+" ", w)
+		p.join(s.Muted.Render(pages(su)), s.Muted.Render(revelation(su)), p.kv("esc", "back"))+" ", w)
 	return page{
 		head: []string{l1, p.scopeRibbon(s.Bold.Render(plural(len(items), "qari")))},
 		n:    len(items),

@@ -118,7 +118,7 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 --theme NAME   color theme (see --themes; overrides the saved choice)
 --themes       list the themes
 --proxy URL    send all traffic through a proxy, e.g. socks5://127.0.0.1:1080
---no-arabic    hide the Arabic surah names
+--arabic       also show the Arabic surah names
 --no-notify    no desktop notification when a surah starts
 --version      print the version
 ```
@@ -148,10 +148,10 @@ mpv-mpris plugin does not show a second player.
 
 ### Arabic text
 
-Qari names are searchable in Arabic but shown only in the chosen language. Arabic surah
-names show up correctly in terminals that support right-to-left text, such as Konsole,
-GNOME Terminal and other VTE terminals, WezTerm and mlterm. In terminals without it, Arabic looks
-reversed. Use `--no-arabic` there. Searching in Arabic works in every terminal.
+Names are shown in the chosen language (English by default), and you can search in Arabic:
+typing `البقره` finds Al-Baqarah. `--arabic` also shows the Arabic surah names, for terminals
+that support right-to-left text (Konsole, GNOME Terminal and other VTE terminals, WezTerm,
+mlterm); elsewhere Arabic looks reversed.
 
 ### Blocked networks
 

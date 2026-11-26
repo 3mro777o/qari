@@ -32,7 +32,7 @@ func main() {
 	proxy := flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
 	theme := flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
 	listThemes := flag.Bool("themes", false, "list available color themes and exit")
-	noArabic := flag.Bool("no-arabic", false, "hide Arabic surah names (for terminals without Arabic text support)")
+	arabic := flag.Bool("arabic", false, "also show Arabic surah names (needs a terminal with Arabic text support)")
 	noNotify := flag.Bool("no-notify", false, "no desktop notification when a surah starts")
 	languages := flag.Bool("languages", false, "list the name languages the API offers and exit")
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -103,7 +103,7 @@ func main() {
 	m := ui.New(ui.Options{
 		Client: client, Lang: *lang, Store: st, Player: p, Desktop: desk,
 		Downloads: download.New(dataDir, httpClient),
-		Popular:   popular.Load(), NoArabic: *noArabic, Theme: *theme, Version: version,
+		Popular:   popular.Load(), NoArabic: !*arabic, Theme: *theme, Version: version,
 	})
 	prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	// Closing the terminal (SIGHUP) or a kill (SIGTERM) must not leave mpv
