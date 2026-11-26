@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -143,6 +144,13 @@ func paths() (cacheDir, stateFile, dataDir string) {
 	cache, err := os.UserCacheDir()
 	if err != nil {
 		cache = os.TempDir()
+	}
+	if runtime.GOOS == "windows" { // %LocalAppData%\qari and %AppData%\qari
+		roaming, err := os.UserConfigDir()
+		if err != nil {
+			roaming = cache
+		}
+		return filepath.Join(cache, "qari", "cache"), filepath.Join(roaming, "qari", "state.json"), filepath.Join(cache, "qari", "downloads")
 	}
 	home, _ := os.UserHomeDir()
 	xdg := func(env, def string) string {

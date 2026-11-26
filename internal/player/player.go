@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -57,7 +56,7 @@ func (p *Player) start() error {
 	if err != nil {
 		return err
 	}
-	p.sock = filepath.Join(dir, "mpv.sock")
+	p.sock = ipcPath(dir)
 	p.cmd = exec.Command("mpv",
 		"--idle=yes", "--no-video", "--no-terminal", "--keep-open=no",
 		"--no-resume-playback", "--save-position-on-quit=no",
@@ -70,7 +69,7 @@ func (p *Player) start() error {
 		return fmt.Errorf("starting mpv: %w", err)
 	}
 	for i := 0; i < 100; i++ { // wait up to 5s for the socket
-		if p.conn, err = net.Dial("unix", p.sock); err == nil {
+		if p.conn, err = dialIPC(p.sock); err == nil {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)

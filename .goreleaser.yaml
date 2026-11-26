@@ -1,13 +1,38 @@
 version: 2
 builds:
   - env: [CGO_ENABLED=0]
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     ldflags: ["-s -w -X main.version={{.Version}}"]
 archives:
   - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     files: [README.md, LICENSE]
 checksum:
   name_template: checksums.txt
 changelog:
   sort: asc
+# The formula and the manifest live in this repository, so it is its own tap and bucket.
+brews:
+  - repository:
+      owner: 3mro777o
+      name: qari
+      branch: main
+    directory: Formula
+    homepage: https://github.com/3mro777o/qari
+    description: Terminal Quran player for mp3quran.net
+    license: MIT
+    dependencies: [mpv]
+    commit_msg_template: "Homebrew formula for {{ .Tag }}"
+scoops:
+  - repository:
+      owner: 3mro777o
+      name: qari
+      branch: main
+    directory: bucket
+    homepage: https://github.com/3mro777o/qari
+    description: Terminal Quran player for mp3quran.net
+    license: MIT
+    commit_msg_template: "Scoop manifest for {{ .Tag }}"
