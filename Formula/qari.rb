@@ -5,23 +5,23 @@
 class Qari < Formula
   desc "Terminal Quran player for mp3quran.net"
   homepage "https://github.com/3mro777o/qari"
-  version "0.2.0"
+  version "0.2.1"
   license "MIT"
 
   depends_on "mpv"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_darwin_amd64.tar.gz"
-      sha256 "0c97a99e5e7d50ede887b37adbd5812fe6498122fa0a486f646e4e45a95e21fa"
+      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_darwin_amd64.tar.gz"
+      sha256 "5b0c08bcf0cce6c788fe3f6ac9b215551c66c030e371aad49b748bcf24249e58"
 
       define_method(:install) do
         bin.install "qari"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_darwin_arm64.tar.gz"
-      sha256 "261284cc9fc5069ac4fb1be92ff1cf27b91e728292380b442c90a26d4e981469"
+      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_darwin_arm64.tar.gz"
+      sha256 "d09076b679b7a2a853a7fa9356a6c85ba5ac4a9b8511c9dc1a4d19c610ef9e55"
 
       define_method(:install) do
         bin.install "qari"
@@ -31,15 +31,15 @@ class Qari < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_linux_amd64.tar.gz"
-      sha256 "d06bea55554e5fa15b450ad46583083ecd12fafb8175a9250ad76a22e611b436"
+      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_linux_amd64.tar.gz"
+      sha256 "451a0eaf61f2fdf88bafbb0f70165299f47fafd16f7be28ad3113af4e1e73498"
       define_method(:install) do
         bin.install "qari"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.0/qari_0.2.0_linux_arm64.tar.gz"
-      sha256 "407fa720d290c391d9d5cf9063594aa12e9079d0823ee25b848690d142cfc4e1"
+      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_linux_arm64.tar.gz"
+      sha256 "24c0ae6b4c0c5f4c682528d11569484de6112061078caf0679d931c65ce9c2f6"
       define_method(:install) do
         bin.install "qari"
       end
