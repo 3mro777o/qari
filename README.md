@@ -50,8 +50,23 @@ you left off. Playback runs through [mpv](https://mpv.io).
 
 ## Install
 
-You need **mpv**: `sudo pacman -S mpv` · `sudo apt install mpv` · `sudo dnf install mpv` ·
-`brew install mpv`.
+**macOS (Homebrew)**, installs mpv too:
+
+```sh
+brew tap 3mro777o/qari https://github.com/3mro777o/qari
+brew install qari
+```
+
+**Windows (Scoop)**, then mpv from the extras bucket:
+
+```powershell
+scoop bucket add qari https://github.com/3mro777o/qari
+scoop install qari
+scoop bucket add extras; scoop install mpv
+```
+
+Elsewhere you need **mpv** first: `sudo pacman -S mpv` · `sudo apt install mpv` · `sudo dnf install mpv`
+· `winget install mpv`.
 
 **Prebuilt binary:** download the archive for your system from
 [Releases](https://github.com/3mro777o/qari/releases), extract it and put `qari` in your `PATH`.
@@ -69,7 +84,7 @@ git clone https://github.com/3mro777o/qari && cd qari
 go build -o qari . && ./qari
 ```
 
-Linux and macOS are supported. Windows is not yet (mpv's IPC uses named pipes there).
+Linux, macOS and Windows are supported. Use Windows Terminal on Windows.
 
 ## Usage
 
@@ -144,7 +159,8 @@ remembered) and `esc` goes back.
 
 On Linux qari registers as `org.mpris.MediaPlayer2.qari`, so media keys, desktop widgets and
 `playerctl -p qari play-pause` work while it runs. It starts mpv without scripts, so an installed
-mpv-mpris plugin does not show a second player.
+mpv-mpris plugin does not show a second player. On macOS and Windows there are no media keys yet;
+qari shows a notification when a new surah starts.
 
 ### Arabic text
 
@@ -188,6 +204,8 @@ go run ./tools/genpopular
 | Favorites, progress, recipes, history, settings | `$XDG_STATE_HOME/qari/state.json` (default `~/.local/state/qari/`) |
 | Catalog cache | `$XDG_CACHE_HOME/qari/` (default `~/.cache/qari/`, `~/Library/Caches/qari/` on macOS) |
 | Downloaded surahs | `$XDG_DATA_HOME/qari/` (default `~/.local/share/qari/`) |
+
+On Windows: state in `%AppData%\qari\state.json`, cache and downloads in `%LocalAppData%\qari\`.
 
 ## Credits
 
