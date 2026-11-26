@@ -21,6 +21,16 @@ you left off. Playback runs through [mpv](https://mpv.io).
   [Popularity data](#popularity-data)). Sort by name or by recently updated with `s`.
 - **Remembers your place.** Every surah keeps its position. *Continue listening* on the home
   screen resumes it, and finished surahs get a ✓.
+- **Random play with recipes.** Press `z` and pick a recipe: a saved filter of qaris (all, well-known,
+  favorites or your own list), riwayat, styles (Murattal, Mujawwad, ...) and surahs (all, Juz Amma,
+  your own list), or radio stations. When a surah ends another random one starts, no surah by the
+  same qari repeats until the recipe runs out, `n` picks another and `p` goes back. Built-in recipes:
+  *Anything* (well-known qaris, Hafs, Murattal), *Favorite qaris*, *Short surahs* (Juz Amma),
+  *Daily surahs* (Al-Kahf, As-Sajdah, Ya-Sin, Al-Waqi'ah, Al-Mulk), *Mujawwad*, *Random radio* and
+  *Favorite radios*. Create your own with `a`, or copy and change a built-in one with `c`.
+  In the editor `enter` changes a field, `/` searches the qaris or surahs, and `s` saves.
+- **History.** The History tab lists the last 200 surahs and stations you started, by day, with
+  where you left off. `enter` plays one again from that point.
 - **Offline listening.** Press `d` to download a surah, or a whole recording. The Downloads
   tab shows the queue with progress and speed; downloaded surahs play from disk, with no network.
 - **Made for listening:** autoplay the next surah, repeat one surah, sleep timer (15–60 minutes
@@ -69,7 +79,7 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 
 | Key | Action |
 | --- | --- |
-| `1`–`5`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads |
+| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
 | `j` `k` / `↓` `↑` | Move |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Half a page down / up |
 | `g` `G` / `home` `end` | First / last row |
@@ -80,7 +90,8 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 | `space` | Play / pause (resumes your last surah when idle) |
 | `←` `→` | Seek 10 seconds |
 | `,` `.` (or `shift+←` `shift+→`) | Seek 1 minute |
-| `n` `p` | Next / previous surah in the recording |
+| `n` `p` | Next / previous surah in the recording (in random play: another pick / back) |
+| `z` | Random: `enter` plays a recipe; `a` new, `e` edit, `c` copy, `x` delete (press twice) |
 | `+` `-` | Volume |
 | `m` | Mute |
 | `[` `]` | Slower / faster (0.75×–2×) |
@@ -92,7 +103,7 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 | `w` | Filter by riwayah |
 | `v` | Choose a qari's recording |
 | `d` | Download the surah, or the whole recording (on a qari or in the recording list; asks to press again) |
-| `x` | Delete a download, or cancel it |
+| `x` | Delete a download or cancel it; remove a History entry |
 | `c` | Color theme (moving previews it, `enter` keeps it, `esc` goes back) |
 | `?` | Help |
 | `q` / `ctrl+c` | Quit (your place is saved) |
@@ -174,7 +185,7 @@ go run ./tools/genpopular
 
 | What | Where |
 | --- | --- |
-| Favorites, progress, settings | `$XDG_STATE_HOME/qari/state.json` (default `~/.local/state/qari/`) |
+| Favorites, progress, recipes, history, settings | `$XDG_STATE_HOME/qari/state.json` (default `~/.local/state/qari/`) |
 | Catalog cache | `$XDG_CACHE_HOME/qari/` (default `~/.cache/qari/`, `~/Library/Caches/qari/` on macOS) |
 | Downloaded surahs | `$XDG_DATA_HOME/qari/` (default `~/.local/share/qari/`) |
 
