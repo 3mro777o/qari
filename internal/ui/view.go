@@ -58,7 +58,7 @@ func (p *painter) kv(k, v string) string { return p.s.Key.Render(k) + " " + p.s.
 
 // join joins the non-empty parts with a muted " · ".
 func (p *painter) join(parts ...string) string {
-	return strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), p.s.Muted.Render(" · "))
+	return strings.Join(slices.DeleteFunc(parts, func(s string) bool { return width(s) == 0 }), p.s.Muted.Render(" · "))
 }
 
 // fitJoin joins as many leading parts as fit in w cells.
@@ -292,7 +292,7 @@ func (p *painter) spec() page {
 				su := items[i]
 				f, ok := heard[su.ID]
 				hot := p.kind == playSurah && p.track.Surah == su.ID
-				return p.row(sel, p.status(hot, f, ok)+" "+p.surahCell(su, sel, hot, w), s.Muted.Render(p.join(revelation(su), pages(su))), w)
+				return p.row(sel, p.status(hot, f, ok)+" "+p.surahCell(su, sel, hot, w), p.join(s.Muted.Render(revelation(su)), s.Muted.Render(pages(su))), w)
 			},
 			side:  func(i, w, h int) []string { return p.surahSide(items[i], heard, w, h) },
 			split: 58, empty: [2]string{noMatch, "Try an English or Arabic name, or a number 1-114"},
@@ -353,11 +353,7 @@ func (p *painter) qariRow(r *api.ReciterEntry, rank, w int, sel bool) string {
 	if rank > 0 {
 		left = s.Muted.Render(fmt.Sprintf("%02d ", rank))
 	}
-	if p.Store.Favorites[r.ID] {
-		left += s.Fav.Render("★ ")
-	} else if rank == 0 {
-		left += "  "
-	}
+	left += map[bool]string{true: s.Fav.Render("★ "), false: "  "}[p.Store.Favorites[r.ID]]
 	if p.kind == playSurah && p.track.Reciter == r.ID {
 		left += p.status(true, 0, false) + " "
 	}
@@ -390,7 +386,7 @@ func (p *painter) qariSide(r *api.ReciterEntry, w, h int) []string {
 	out := []string{"  " + s.AccentB.Render(r.Name), "  " + p.join(fav, done, s.Sub.Render(count(r.Listens)+map[bool]string{true: " listens"}[r.Listens > 0]))}
 	heard := p.heard(func(pr *store.Progress) bool { return pr.Reciter == r.ID })
 	if fin := finished(heard); len(heard) > 0 {
-		out = append(out, "", "  "+mini(float64(fin)/114, 12, s.Accent, s.Rule)+" "+s.Sub.Render(p.join(fmt.Sprintf("✓ %d/114 finished", fin), fmt.Sprintf("◔ %d started", len(heard)-fin))))
+		out = append(out, "", "  "+mini(float64(fin)/114, 12, s.Accent, s.Rule)+" "+p.join(s.Sub.Render(fmt.Sprintf("✓ %d/114 finished", fin)), s.Sub.Render(fmt.Sprintf("◔ %d started", len(heard)-fin))))
 	}
 	out = append(out, "", "  "+s.AccentB.Render(fmt.Sprintf("RECORDINGS (%d)", len(r.Moshaf))))
 	pref, _ := best(p.cat, r, p.Store.Settings.Rewaya, 0, false)
@@ -502,7 +498,7 @@ func (p *painter) qariPage(q string) page {
 			case pr != nil && pr.Finished:
 				right = p.join(s.Muted.Render(revelation(su)), s.Success.Render("✓ heard"))
 			default:
-				right = s.Muted.Render(p.join(revelation(su), map[bool]string{true: pages(su)}[w >= 74]))
+				right = p.join(s.Muted.Render(revelation(su)), s.Muted.Render(map[bool]string{true: pages(su)}[w >= 74]))
 			}
 			if p.Downloads.Has(t) {
 				right = p.join(s.Accent2.Render("↓"), right)
@@ -653,7 +649,7 @@ func (p *painter) home(y, h int) []string {
 		for _, pr := range p.Store.Progress {
 			fin += b2i(pr.Finished)
 		}
-		right = append(right, srow{"", -1}, srow{" " + s.Muted.Render(p.join(plural(len(p.cat.Reciters), "qari"), plural(len(p.Store.Favorites), "favorite"), plural(fin, "surah")+" finished")), -1})
+		right = append(right, srow{"", -1}, srow{" " + p.join(s.Muted.Render(plural(len(p.cat.Reciters), "qari")), s.Muted.Render(plural(len(p.Store.Favorites), "favorite")), s.Muted.Render(plural(fin, "surah")+" finished")), -1})
 	}
 	return columns(p.window(left, 0, y, lw, h), p.window(right, lw+1, y, rw, h), lw, rw, h, s.Rule.Render("│"))
 }
@@ -969,7 +965,10 @@ func (p *painter) help() []string {
 		}
 		return out
 	}
-	top := s.Muted.Render(p.join(p.th.Name, p.Version))
+	top := s.Muted.Render(p.th.Name)
+	if len(p.Version) <= 12 { // release tags only, not Go pseudo-versions
+		top = p.join(top, s.Muted.Render(p.Version))
+	}
 	note := s.Muted.Render("Shortcuts follow key positions, so they work on the Arabic layout too.")
 	if p.w >= 100 && p.h >= 24 {
 		bw := min(p.w-6, 98)

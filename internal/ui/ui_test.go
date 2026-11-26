@@ -210,7 +210,10 @@ func TestBestRecording(t *testing.T) {
 	if n := len(m.qaris("")); n != 2 {
 		t.Fatalf("well-known qaris: %d, want 2", n)
 	}
-	if s := m.surahs(nil, "18"); s[0].ID != 18 {
-		t.Fatal("exact surah number should come first")
+	if s := m.surahs(nil, "18"); len(s) != 1 || s[0].ID != 18 {
+		t.Fatal("a number should find that surah only")
+	}
+	if s := m.surahs(nil, "11"); len(s) != 6 || s[0].ID != 11 {
+		t.Fatalf("11 should find 11 first, then 110-114: %d", len(s))
 	}
 }

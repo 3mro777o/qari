@@ -168,7 +168,11 @@ func (m *Model) surahs(ids []int, query string) []api.SurahEntry {
 	var out []api.SurahEntry
 	for i, s := range m.cat.Surahs {
 		s.ID = i + 1
-		if (ids == nil || slices.Contains(ids, s.ID)) && norm.Match(fmt.Sprintf("%d %03d %s", s.ID, s.ID, s.Search), q) {
+		match := norm.Match(s.Search, q)
+		if num > 0 { // a number matches surah numbers only: 1 finds 1, 10-19, 100-114
+			match = strings.HasPrefix(strconv.Itoa(s.ID), q) || strings.HasPrefix(fmt.Sprintf("%03d", s.ID), q)
+		}
+		if (ids == nil || slices.Contains(ids, s.ID)) && match {
 			if s.ID == num {
 				out = append([]api.SurahEntry{s}, out...)
 			} else {
