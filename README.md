@@ -133,6 +133,29 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 
 ![The help screen lists every key](docs/help.png)
 
+### Commands
+
+Start playing straight from the shell. Names can be partial, in English or Arabic; a surah is a
+number or a name. Ambiguous names list the matches.
+
+```sh
+qari play alafasi 18          # Al-Kahf by Mishary Alafasi, from where you left off
+qari play alafasi             # resume what you last heard of that qari (else Al-Fatihah)
+qari radio ajmy               # a live radio station
+qari random "short surahs"    # random play from a recipe (no name: the last one used)
+qari play alafasi yasin --no-ui   # no interface: one status line, ctrl+c stops
+```
+
+The interface opens already playing, with every key available. With `--no-ui` the next surah
+or random pick follows like in the app, and your place is saved the same way.
+
+**Tab completion:** the install command sets it up for bash, zsh, fish and PowerShell (Homebrew
+does too). Tab then completes commands, flags, qari names, surahs, stations, recipes and themes.
+To set it up by hand, load the output of `qari completion bash|zsh|fish|powershell` in your shell.
+
+**Updates:** once a day qari checks for a new release and says so in the footer. Run the install
+command again to update.
+
 ### Options
 
 ```text
@@ -143,6 +166,7 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 --proxy URL    send all traffic through a proxy, e.g. socks5://127.0.0.1:1080
 --arabic       also show the Arabic surah names
 --no-notify    no desktop notification when a surah starts
+--no-ui        with play, radio or random: play without the interface
 --version      print the version
 ```
 
