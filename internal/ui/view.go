@@ -34,6 +34,9 @@ type painter struct {
 }
 
 func (m Model) View() string {
+	if m.Headless {
+		return m.statusLine()
+	}
 	v, _ := m.paint()
 	return v
 }

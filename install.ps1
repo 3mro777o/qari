@@ -40,6 +40,15 @@ try {
 		if (($env:Path -split ';') -notcontains $d) { $env:Path += ";$d" }
 	}
 	[Environment]::SetEnvironmentVariable('Path', $path, 'User')
+
+	# Tab completion: one line in the PowerShell profile. Older releases would open the player
+	# instead, so check --help first (it prints to stderr, which must not stop the script).
+	$help = & { $ErrorActionPreference = 'Continue'; & "$qdir\qari.exe" --help 2>&1 | Out-String }
+	if ($help -match 'completion') {
+		$line = 'if (Get-Command qari -ErrorAction SilentlyContinue) { qari completion powershell | Out-String | Invoke-Expression }'
+		if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Force $PROFILE | Out-Null }
+		if (-not (Select-String -Path $PROFILE -SimpleMatch $line -Quiet)) { Add-Content $PROFILE $line }
+	}
 	Write-Host "Done: qari $ver. Type: qari (open a new terminal if it is not found)"
 } finally {
 	Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

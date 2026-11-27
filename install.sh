@@ -50,5 +50,28 @@ curl -fsSL -o "$tmp/checksums.txt" "https://github.com/$repo/releases/download/$
 tar -xzf "$tmp/$file" -C "$tmp" qari
 
 # /usr/local/bin is on PATH everywhere, so "qari" works in any new terminal.
-sudo_ install -m 755 "$tmp/qari" /usr/local/bin/qari
-say "Done: $(/usr/local/bin/qari --version). Type: qari"
+q=/usr/local/bin/qari
+sudo_ install -m 755 "$tmp/qari" "$q"
+
+# Tab completion for each installed shell; a rerun overwrites the same files.
+comp() { # shell, file, [sudo_]
+	"$q" completion "$1" >"$tmp/comp" && ${3:-} mkdir -p "${2%/*}" && ${3:-} cp "$tmp/comp" "$2"
+}
+if "$q" --help 2>&1 | grep -q completion; then # older releases would open the player instead
+	if command -v bash >/dev/null; then
+		comp bash "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/qari"
+	fi
+	if command -v zsh >/dev/null; then
+		d=/usr/local/share/zsh/site-functions
+		if zsh -fc 'print -l $fpath' | grep -qx "$d"; then
+			comp zsh "$d/_qari" sudo_
+		else
+			line='command -v qari >/dev/null && (( $+functions[compdef] )) && source <(qari completion zsh) # qari Tab completion'
+			grep -qxF "$line" "$HOME/.zshrc" 2>/dev/null || printf '\n%s\n' "$line" >>"$HOME/.zshrc"
+		fi
+	fi
+	if command -v fish >/dev/null; then
+		comp fish "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/qari.fish"
+	fi
+fi
+say "Done: $($q --version). Type: qari (in a new terminal, Tab completes commands and names)"

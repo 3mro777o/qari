@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -28,21 +29,51 @@ import (
 
 var version = "dev"
 
+var (
+	lang        = flag.String("lang", envOr("QARI_LANG", "eng"), "language for reciter and surah names (see --languages)")
+	proxy       = flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
+	theme       = flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
+	listThemes  = flag.Bool("themes", false, "list available color themes and exit")
+	arabic      = flag.Bool("arabic", false, "also show Arabic surah names (needs a terminal with Arabic text support)")
+	noNotify    = flag.Bool("no-notify", false, "no desktop notification when a surah starts")
+	noUI        = flag.Bool("no-ui", false, "with play, radio or random: play without the interface, one status line")
+	languages   = flag.Bool("languages", false, "list the name languages the API offers and exit")
+	showVersion = flag.Bool("version", false, "print the version and exit")
+)
+
+const usageText = `qari %s: listen to the Quran in your terminal
+
+Usage:
+  qari [flags]                      open the player
+  qari play <qari> [surah] [flags]  play a surah (no surah: resume that qari)
+  qari radio <station> [flags]      play a live radio station
+  qari random [recipe] [flags]      random play from a recipe (default: the last one)
+  qari completion bash|zsh|fish|powershell
+                                    print the Tab-completion script
+
+Names can be partial, in English or Arabic; a surah is a number or a name.
+Press Tab to complete them. Flags go before or after the command.
+
+Examples:
+  qari play alafasi 18
+  qari play "abdulbasit abdulsamad" yasin --no-ui
+  qari radio ajmy
+  qari random "short surahs"
+
+Flags:
+`
+
 func main() {
-	lang := flag.String("lang", envOr("QARI_LANG", "eng"), "language for reciter and surah names (see --languages)")
-	proxy := flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
-	theme := flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
-	listThemes := flag.Bool("themes", false, "list available color themes and exit")
-	arabic := flag.Bool("arabic", false, "also show Arabic surah names (needs a terminal with Arabic text support)")
-	noNotify := flag.Bool("no-notify", false, "no desktop notification when a surah starts")
-	languages := flag.Bool("languages", false, "list the name languages the API offers and exit")
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "qari %s: listen to the Quran in your terminal\n\nUsage: qari [flags]\n\n", version)
-		flag.PrintDefaults()
-		fmt.Fprintln(os.Stderr, "\nPress ? inside the app for keys. Needs mpv for playback.")
+	if len(os.Args) > 1 && os.Args[1] == "__complete" {
+		complete(os.Stdout, os.Args[2:])
+		return
 	}
-	flag.Parse()
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), usageText, version)
+		flag.PrintDefaults()
+		fmt.Fprintln(flag.CommandLine.Output(), "\nPress ? inside the app for keys. Needs mpv for playback.")
+	}
+	args := parseArgs(flag.CommandLine, os.Args[1:])
 	if version == "dev" { // installed with go install: use the module version
 		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 			version = bi.Main.Version
@@ -60,6 +91,28 @@ func main() {
 	}
 	if *theme != "" && !ui.ValidTheme(*theme) {
 		fail(fmt.Errorf("unknown theme %q (run --themes to list available themes)", *theme))
+	}
+	cmd := ""
+	if len(args) > 0 {
+		cmd, args = args[0], args[1:]
+	}
+	switch cmd {
+	case "", "play", "radio", "random":
+	case "help":
+		flag.CommandLine.SetOutput(os.Stdout)
+		flag.Usage()
+		return
+	case "completion":
+		if len(args) != 1 || scripts[args[0]] == "" {
+			fail(fmt.Errorf("usage: qari completion bash|zsh|fish|powershell"))
+		}
+		fmt.Print(scripts[args[0]])
+		return
+	default:
+		fail(fmt.Errorf("unknown command %q (run qari help)", cmd))
+	}
+	if *noUI && cmd == "" {
+		fail(fmt.Errorf("--no-ui needs a command: qari play, radio or random"))
 	}
 
 	httpClient, err := newHTTPClient(*proxy)
@@ -101,18 +154,43 @@ func main() {
 		defer desk.Close()
 	}
 
-	m := ui.New(ui.Options{
+	opts := ui.Options{
 		Client: client, Lang: *lang, Store: st, Player: p, Desktop: desk,
 		Downloads: download.New(dataDir, httpClient),
-		Popular:   popular.Load(), NoArabic: !*arabic, Theme: *theme, Version: version,
-	})
-	prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		Popular:   popular.Load(), NoArabic: !*arabic, Theme: *theme, Version: version, Headless: *noUI,
+	}
+	if cmd != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		opts.Catalog, err = api.LoadCatalog(ctx, client, *lang)
+		cancel()
+		if err != nil {
+			fail(fmt.Errorf("loading the catalog: %w", err))
+		}
+		if opts.Start, err = ui.Resolve(opts, cmd, args); err != nil {
+			fail(err)
+		}
+	}
+	notice := checkUpdate(httpClient, st)
+	var prog *tea.Program
+	if *noUI {
+		prog = tea.NewProgram(ui.New(opts), tea.WithInput(nil))
+	} else {
+		prog = tea.NewProgram(ui.New(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
+		go func() {
+			if s := <-notice; s != "" {
+				prog.Send(ui.Notice(s))
+			}
+		}()
+	}
 	// Closing the terminal (SIGHUP) or a kill (SIGTERM) must not leave mpv
 	// playing on its own.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGTERM)
 	go func() { <-sig; prog.Quit() }()
-	_, err = prog.Run()
+	final, err := prog.Run()
+	if errors.Is(err, tea.ErrInterrupted) { // ctrl+c in --no-ui mode
+		err = nil
+	}
 	if p != nil {
 		p.Close()
 	}
@@ -121,6 +199,16 @@ func main() {
 	}
 	if err != nil {
 		fail(err)
+	}
+	if *noUI {
+		fmt.Println(final.View()) // the renderer erases its line on exit
+		select {
+		case s := <-notice:
+			if s != "" {
+				fmt.Fprintln(os.Stderr, s)
+			}
+		default:
+		}
 	}
 }
 

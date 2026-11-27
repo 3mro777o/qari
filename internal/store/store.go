@@ -48,6 +48,23 @@ type Data struct {
 	Settings  Settings             `json:"settings"`
 	Recipes   []Recipe             `json:"recipes,omitempty"`
 	History   []Entry              `json:"history,omitempty"` // oldest first
+	Release   UpdateCheck          `json:"release"`
+}
+
+// UpdateCheck remembers the last look for a newer release, and the last
+// notice shown about it.
+type UpdateCheck struct {
+	Checked time.Time `json:"checked"`
+	Latest  string    `json:"latest,omitempty"`
+	Shown   string    `json:"shown,omitempty"`
+	ShownAt time.Time `json:"shown_at"`
+}
+
+// SetRelease records u; the update check runs beside the UI.
+func (s *Store) SetRelease(u UpdateCheck) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Release = u
 }
 
 // Recipe is a saved filter for random play. Empty lists mean "all".

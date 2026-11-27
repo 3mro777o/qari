@@ -1,4 +1,8 @@
 version: 2
+before:
+  hooks:
+    # Tab-completion scripts for the archives and the Homebrew formula.
+    - sh -c 'mkdir -p completions && for s in bash zsh fish; do go run . completion $s > completions/qari.$s; done'
 builds:
   - env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
@@ -9,7 +13,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [README.md, LICENSE]
+    files: [README.md, LICENSE, completions/*]
 checksum:
   name_template: checksums.txt
 changelog:
@@ -25,6 +29,11 @@ brews:
     description: Terminal Quran player for mp3quran.net
     license: MIT
     dependencies: [mpv]
+    install: |
+      bin.install "qari"
+      bash_completion.install "completions/qari.bash" => "qari"
+      zsh_completion.install "completions/qari.zsh" => "_qari"
+      fish_completion.install "completions/qari.fish"
     commit_msg_template: "Homebrew formula for {{ .Tag }}"
 scoops:
   - repository:

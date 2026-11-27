@@ -29,7 +29,9 @@ type Options struct {
 	NoArabic  bool
 	Theme     string // overrides the saved theme
 	Version   string
-	Catalog   *api.Catalog // preloaded (tests)
+	Catalog   *api.Catalog // preloaded (tests, direct commands)
+	Start     *Start       // play this right away (qari play, radio, random)
+	Headless  bool         // --no-ui: one status line, quit when playback stops
 }
 
 // Pages: the six tabs, then the two detail pages.
@@ -220,6 +222,9 @@ func (m Model) Init() tea.Cmd {
 	if m.Desktop != nil {
 		cmds = append(cmds, wait(m.Desktop.Cmds))
 	}
+	if m.Start != nil {
+		cmds = append(cmds, func() tea.Msg { return startMsg{} })
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -236,6 +241,9 @@ func (m *Model) load() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmd := m.update(msg)
 	m.syncDesktop()
+	if m.headlessDone() {
+		return m, tea.Batch(cmd, tea.Quit)
+	}
 	return m, cmd
 }
 
@@ -255,6 +263,13 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		if m.loadErr = msg.err; msg.err == nil {
 			m.setCatalog(msg.cat)
 		}
+	case startMsg:
+		return m.begin()
+	case Notice:
+		m.toast = string(msg)
+		m.toastID++
+		id := m.toastID
+		return tea.Tick(8*time.Second, func(time.Time) tea.Msg { return toastMsg(id) })
 	case toastMsg:
 		if int(msg) == m.toastID {
 			m.toast = ""
