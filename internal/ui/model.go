@@ -321,8 +321,8 @@ func (m *Model) onPlayer(ev player.Event) tea.Cmd {
 		m.buffering = false
 		return m.flash(ev.Err.Error())
 	}
-	if m.kind == playNone {
-		return nil
+	if m.kind == playNone || ev.Tag != m.seq {
+		return nil // nothing plays, or left over from the previous file
 	}
 	m.buffering, m.paused = ev.Loading, ev.Paused
 	if ev.Pos > 0 || !ev.Loading {
@@ -425,7 +425,7 @@ func (m *Model) play(url string, start float64, title string, speed float64) tea
 	m.paused, m.buffering = false, true
 	p, seq, mute := m.Player, m.seq, m.muted
 	return tea.Batch(m.spin.Tick, func() tea.Msg {
-		err := p.Play(url, start, title)
+		err := p.Play(url, start, title, seq)
 		if err == nil {
 			p.SetSpeed(speed)
 			p.SetMute(mute)

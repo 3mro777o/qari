@@ -185,6 +185,16 @@ _qari() {
 	local IFS=$'\n'
 	COMPREPLY=($("$1" __complete "${COMP_WORDS[@]:1:COMP_CWORD}" 2>/dev/null | cut -f1))
 	compopt -o filenames 2>/dev/null # bash then quotes names with spaces
+	# Matches need not start with the typed word (kahf finds Al-Kahf). bash would
+	# replace the word with the matches' common start, so keep the word as a
+	# choice when that start does not contain it.
+	if ((${#COMPREPLY[@]} > 1)); then
+		local cur=${COMP_WORDS[COMP_CWORD]} p=${COMPREPLY[0]} c nc
+		for c in "${COMPREPLY[@]}"; do while [[ ${c:0:${#p}} != "$p" ]]; do p=${p%?}; done; done
+		nc=$(shopt -p nocasematch); shopt -s nocasematch
+		[[ $p == *"$cur"* ]] || COMPREPLY+=("$cur")
+		eval "$nc"
+	fi
 }
 complete -o nosort -F _qari qari 2>/dev/null || complete -F _qari qari
 `,

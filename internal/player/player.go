@@ -21,6 +21,7 @@ type Event struct {
 	Loading       bool  // a file is opening and has not started yet
 	Ended         bool  // the current file played to the end
 	Err           error // the file failed to play or mpv exited
+	Tag           int   // the tag of the Play call this event belongs to
 }
 
 type Player struct {
@@ -131,10 +132,14 @@ func (p *Player) read(conn net.Conn) {
 			var b bool
 			switch m.Name {
 			case "time-pos":
+				if s.Loading {
+					p.mu.Unlock()
+					continue // still the previous file's position
+				}
 				if json.Unmarshal(m.Data, &f) == nil {
 					// mpv reports many times a second; the UI only needs whole seconds.
 					same := int(f) == int(s.Pos) && !s.Loading && !p.precise
-					s.Pos, s.Loading = f, false
+					s.Pos = f
 					if same {
 						p.mu.Unlock()
 						continue
@@ -183,8 +188,9 @@ func (p *Player) emit(ev Event) {
 }
 
 // Play loads url (or a local file), starting at start seconds. title is
-// mpv's media title.
-func (p *Player) Play(url string, start float64, title string) error {
+// mpv's media title. Events from now on carry tag, so the caller can drop
+// ones still queued from the previous file.
+func (p *Player) Play(url string, start float64, title string, tag int) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if err := p.start(); err != nil {
@@ -193,7 +199,7 @@ func (p *Player) Play(url string, start float64, title string) error {
 	if p.relay != nil && strings.HasPrefix(url, "http") {
 		url = p.relay.Wrap(url)
 	}
-	p.state = Event{Loading: true}
+	p.state = Event{Loading: true, Tag: tag}
 	// Options are set as properties first: loadfile's per-file options moved
 	// between mpv versions, properties work on all of them.
 	p.send("set_property", "start", fmt.Sprintf("%.1f", start))

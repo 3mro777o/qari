@@ -471,3 +471,18 @@ func TestAyahRepeatFrames(t *testing.T) {
 		checkFrame(t, fmt.Sprintf("help %dx%d", size[0], size[1]), send(m, keys("?")...))
 	}
 }
+
+func TestStalePlayerEventIgnored(t *testing.T) {
+	m := testModel(t, 100, 30)
+	tr := store.Track{Reciter: 1, Moshaf: 1, Surah: 2}
+	m.kind, m.track, m.seq = playSurah, tr, 2
+	// The previous file, near its end, still reports after the switch.
+	m.onPlayer(player.Event{Pos: 45, Duration: 50, Tag: 1})
+	if p := m.Store.Get(tr); p != nil {
+		t.Fatalf("stale event saved progress %+v", *p)
+	}
+	m.onPlayer(player.Event{Pos: 45, Duration: 50, Tag: 2})
+	if p := m.Store.Get(tr); p == nil || !p.Finished {
+		t.Fatalf("current event not saved: %+v", p)
+	}
+}
