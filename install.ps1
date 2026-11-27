@@ -1,5 +1,5 @@
 # Install or update qari (and mpv) on Windows, no admin needed:
-#   irm https://raw.githubusercontent.com/3mro777o/qari/main/install.ps1 | iex
+#   irm https://3mro777o.github.io/qari/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # the progress bar makes downloads very slow
 $repo = '3mro777o/qari'

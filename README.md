@@ -55,13 +55,13 @@ One command installs qari and mpv. Run the same command again to update.
 **Linux and macOS** (macOS uses [Homebrew](https://brew.sh)):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/3mro777o/qari/main/install.sh | sh
+curl -fsSL https://3mro777o.github.io/qari/install.sh | sh
 ```
 
 **Windows** (PowerShell, no admin needed):
 
 ```powershell
-irm https://raw.githubusercontent.com/3mro777o/qari/main/install.ps1 | iex
+irm https://3mro777o.github.io/qari/install.ps1 | iex
 ```
 
 Then type `qari`. On Windows with Smart App Control turned on, Windows blocks qari

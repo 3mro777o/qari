@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install or update qari on Linux and macOS:
-#   curl -fsSL https://raw.githubusercontent.com/3mro777o/qari/main/install.sh | sh
+#   curl -fsSL https://3mro777o.github.io/qari/install.sh | sh
 set -eu
 
 repo=3mro777o/qari
