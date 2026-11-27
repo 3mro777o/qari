@@ -1,0 +1,25 @@
+# Runs the published one-line installers on real machines, the way users do.
+name: install
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+jobs:
+  unix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: curl -fsSL https://3mro777o.github.io/qari/install.sh | sh
+      - run: curl -fsSL https://3mro777o.github.io/qari/install.sh | sh # update path
+      - run: qari --version && command -v mpv
+  windows:
+    runs-on: windows-latest
+    steps:
+      - shell: powershell # Windows PowerShell 5.1, what most users have
+        run: |
+          irm https://3mro777o.github.io/qari/install.ps1 | iex
+          irm https://3mro777o.github.io/qari/install.ps1 | iex
+          qari --version
+          (Get-Command mpv).Source
