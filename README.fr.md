@@ -190,7 +190,7 @@ de votre profil (`notepad $PROFILE`).
 
 1. **Lancez-le.** Tapez `qari`. Vous arrivez sur **Home** (accueil) : *Continue listening*, vos
    récitateurs favoris et les récitateurs les plus écoutés. Les onglets en haut sont `1` Home,
-   `2` Qaris, `3` Surahs, `4` Radio, `5` Downloads, `6` History. Appuyez sur un chiffre ou sur `tab` pour changer.
+   `2` Qaris, `3` Surahs, `4` Radio, `5` Downloads, `6` History, `7` Settings. Appuyez sur un chiffre ou sur `tab` pour changer.
 
    ![Accueil : reprendre l'écoute, récitateurs favoris et récitateurs les plus écoutés](docs/home.png)
 
@@ -306,6 +306,10 @@ fichier de démarrage de votre shell. La complétion apprend les noms après le 
 - **Radio** (`4`) : stations de radio coraniques en direct de mp3quran.net. `f` ajoute une station aux favoris.
 - **History** (`6`, historique) : les 200 dernières sourates et stations lancées, regroupées par jour,
   avec l'endroit où vous vous êtes arrêté. `enter` en relance une à partir de ce point ; `x` supprime une entrée.
+- **Settings** (`7`, réglages) : le tampon (la part d'une sourate que mpv garde en mémoire, 25 Mo
+  par défaut), le volume et la vitesse (mémorisés), la langue des noms, les noms arabes, les
+  notifications, le thème, la riwaya, le tri et la répétition. `enter` ou `→` change une ligne, `←`
+  revient en arrière. Les options comme `--lang` ont la priorité.
 - **Favoris :** `f` sur un récitateur l'ajoute à Home et à la recette *Favorite qaris*.
 - **Tout afficher :** par défaut, vous voyez les récitateurs connus avec un enregistrement complet.
   `a` les affiche tous, y compris les enregistrements partiels et moins connus. `s` trie par popularité,
@@ -366,7 +370,7 @@ Appuyez sur `?` dans l'application pour afficher cette liste. Les touches suiven
 
 | Touche | Action |
 | --- | --- |
-| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
+| `1`–`7`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History, Settings |
 | `j` `k` / `↓` `↑` | Se déplacer |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Une demi-page vers le bas / le haut |
 | `g` `G` / `home` `end` | Première / dernière ligne |

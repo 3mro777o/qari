@@ -175,14 +175,14 @@ func (p *painter) splash() []string {
 func (p *painter) header() []string {
 	s, w := p.s, p.w
 	gap, brand := 3, "✦ qari"
-	if w < 90 {
+	if w < 112 {
 		gap = 2
 	}
-	if w < 72 {
+	if w < 82 {
 		gap, brand = 1, "✦"
 	}
 	line := " " + s.AccentB.Render(brand) + spaces(gap+1)
-	if w < 64 { // room for all six tabs
+	if w < 74 { // room for all seven tabs
 		line = " "
 	}
 	a0, a1 := 0, 0
@@ -205,11 +205,11 @@ func (p *painter) header() []string {
 	if done, total, frac, _ := p.Downloads.Progress(); total > 0 {
 		right = append(right, s.Accent2.Render(fmt.Sprintf("↓ %d/%d %.0f%%", done, total, frac*100)))
 	}
-	if w >= 80 {
+	if w >= 112 {
 		right = append(right, s.Muted.Render(p.th.ID))
 	}
 	help := s.Key.Render("?")
-	if w >= 66 {
+	if w >= 76 {
 		help = p.kv("?", "help")
 	}
 	l1 := lr(line, p.join(append(right, help)...)+" ", w)
@@ -322,6 +322,8 @@ func (p *painter) spec() page {
 		}
 	case pQari:
 		return p.qariPage(q)
+	case pSettings:
+		return p.settingsPage()
 	}
 	return p.surahPage(q)
 }
@@ -992,6 +994,8 @@ func (p *painter) footer(w int) string {
 		first = []string{p.kv("enter", "open"), p.kv("x", "delete")}
 	case pHistory:
 		first = []string{p.kv("enter", "play again"), p.kv("x", "remove"), p.kv("/", "search")}
+	case pSettings:
+		first = []string{p.kv("enter", "change"), p.kv("← →", "adjust")}
 	case pHome:
 		if it := p.homeSel(); it != nil && it.prog != nil {
 			first = []string{p.kv("enter", "resume"), p.kv("x", "remove")}
@@ -1060,6 +1064,12 @@ func (p *painter) picker() []string {
 		row = func(i int, sel bool) (string, string) {
 			mo := p.qari.Moshaf[i]
 			return check(mo.ID == p.moshaf.ID) + p.name(sel, label(p.cat, mo, false)), p.saved(p.qari.ID, mo) + s.Sub.Render(fmt.Sprintf("%d surahs", mo.SurahTotal))
+		}
+	case ovLang:
+		title, info = "✦ Name Language", "qaris and surahs"
+		row = func(i int, sel bool) (string, string) {
+			l := p.langs[i]
+			return check(l.Locale == p.Lang) + p.name(sel, l.Language), s.Muted.Render(l.Locale)
 		}
 	case ovTheme:
 		title, info = "✦ Color Theme", "live preview"

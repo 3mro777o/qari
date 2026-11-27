@@ -3,6 +3,7 @@
 package store
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -112,7 +113,21 @@ type Settings struct {
 	Theme   string `json:"theme,omitempty"`
 	Recipe  string `json:"recipe,omitempty"` // last random recipe
 	Hifz    Hifz   `json:"hifz,omitzero"`    // last ayah repeat
+
+	BufferMB int     `json:"buffer_mb,omitempty"` // mpv cache limit; 0 = DefaultBufferMB
+	Volume   float64 `json:"volume,omitempty"`    // 0 = 100
+	Speed    float64 `json:"speed,omitempty"`     // 0 = 1
+	Lang     string  `json:"lang,omitempty"`      // name language; --lang and QARI_LANG win
+	Arabic   bool    `json:"arabic,omitempty"`    // also show Arabic surah names
+	NoNotify bool    `json:"no_notify,omitempty"` // no notification when a surah starts
 }
+
+// DefaultBufferMB keeps mpv light: its own default caches up to 150 MiB,
+// a whole long surah.
+const DefaultBufferMB = 25
+
+// Buffer is the mpv cache limit in MiB.
+func (s Settings) Buffer() int { return cmp.Or(s.BufferMB, DefaultBufferMB) }
 
 // Hifz is an ayah repeat for memorizing: ayahs From-To, each played Each
 // times, the whole range Times times (0 = until stopped), Gap seconds of

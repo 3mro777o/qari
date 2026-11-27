@@ -188,7 +188,7 @@ settings → Environment Variables*) and the `qari completion` line from your pr
 
 1. **Open it.** Type `qari`. You land on **Home**: *Continue listening*, your favorite qaris and
    the most listened qaris. The tabs on top are `1` Home, `2` Qaris, `3` Surahs, `4` Radio,
-   `5` Downloads, `6` History. Press a number or `tab` to switch.
+   `5` Downloads, `6` History, `7` Settings. Press a number or `tab` to switch.
 
    ![Home: continue listening, favorite qaris and the most listened qaris](docs/home.png)
 
@@ -300,6 +300,9 @@ startup file. Completion learns the names after you open qari once.
 - **Radio** (`4`): live Quran radio stations from mp3quran.net. `f` marks a favorite station.
 - **History** (`6`): the last 200 surahs and stations you started, grouped by day, with where you
   left off. `enter` plays one again from that point; `x` removes an entry.
+- **Settings** (`7`): the buffer (how much of a surah mpv keeps in memory, 25 MB by default),
+  volume and speed (remembered), name language, Arabic names, notifications, theme, riwayah, sort
+  and repeat. `enter` or `→` changes a row, `←` goes back. Flags such as `--lang` win over it.
 - **Favorites:** `f` on a qari adds it to Home and to the *Favorite qaris* recipe.
 - **Show everyone:** by default you see well-known qaris with a complete recording. `a` shows all
   of them, including partial and lesser-known recordings. `s` sorts by popularity, name or recently
@@ -358,7 +361,7 @@ Press `?` in the app for this list. The keys follow mpv, cmus and vim.
 
 | Key | Action |
 | --- | --- |
-| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
+| `1`–`7`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History, Settings |
 | `j` `k` / `↓` `↑` | Move |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Half a page down / up |
 | `g` `G` / `home` `end` | First / last row |

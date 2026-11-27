@@ -2,8 +2,10 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/3mro777o/qari/internal/api"
@@ -27,6 +29,7 @@ type Options struct {
 	Desktop   *desktop.Desktop // nil without a session bus
 	Popular   map[int]popular.Entry
 	NoArabic  bool
+	NoNotify  bool
 	Theme     string // overrides the saved theme
 	Version   string
 	Catalog   *api.Catalog // preloaded (tests, direct commands)
@@ -34,7 +37,7 @@ type Options struct {
 	Headless  bool         // --no-ui: one status line, quit when playback stops
 }
 
-// Pages: the six tabs, then the two detail pages.
+// Pages: the seven tabs, then the two detail pages.
 const (
 	pHome = iota
 	pQaris
@@ -42,11 +45,12 @@ const (
 	pRadio
 	pDownloads
 	pHistory
+	pSettings
 	pQari
 	pSurah
 )
 
-var tabNames = []string{"Home", "Qaris", "Surahs", "Radio", "Downloads", "History"}
+var tabNames = []string{"Home", "Qaris", "Surahs", "Radio", "Downloads", "History", "Settings"}
 
 const (
 	ovNone = iota
@@ -54,7 +58,8 @@ const (
 	ovRiwayah
 	ovRecording
 	ovTheme
-	ovRandom // recipe list
+	ovLang   // name language
+	ovRandom // recipe list; this and later ones belong to random recipes
 	ovEdit   // recipe editor
 	ovField  // multi-select for one editor field
 	ovAyahs  // ayah repeat
@@ -101,7 +106,7 @@ type Model struct {
 	qari            *api.ReciterEntry
 	moshaf          api.Moshaf
 	surah           int
-	lists           [8]listState
+	lists           [9]listState
 	ov              int
 	pick            listState
 	helpOff         int
@@ -148,6 +153,7 @@ type Model struct {
 	hifzTrack store.Track                 // the surah the popup repeats
 	hifzT     []api.AyahTiming            // its timings
 	hifzTyped bool                        // a digit was just typed into the popup
+	langs     []api.Language              // name languages, nil until the picker first opens
 }
 
 type (
@@ -177,6 +183,12 @@ func New(o Options) Model {
 	m.restyle()
 	if o.Catalog != nil {
 		m.setCatalog(o.Catalog)
+	}
+	st := o.Store.Settings
+	m.speed = max(slices.Index(speeds, cmp.Or(st.Speed, 1)), 0)
+	if o.Player != nil {
+		o.Player.SetBuffer(st.Buffer())
+		m.vol = o.Player.AddVolume(cmp.Or(st.Volume, 100) - 100)
 	}
 	return m
 }
@@ -258,6 +270,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 			m.spin, cmd = m.spin.Update(msg)
 			return cmd
 		}
+	case langsMsg:
+		return m.onLangs(msg)
 	case catalogMsg:
 		m.loading = false
 		if m.loadErr = msg.err; msg.err == nil {
@@ -635,6 +649,8 @@ func (m *Model) count() int {
 		return len(m.dlItems())
 	case pHistory:
 		return len(m.histItems())
+	case pSettings:
+		return len(settings)
 	case pQari:
 		return len(m.surahs(surahIDs(m.moshaf), q))
 	case pSurah:

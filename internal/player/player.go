@@ -35,6 +35,7 @@ type Player struct {
 	relay  *Relay
 	speed  float64
 	volume float64
+	buffer int // MiB of stream mpv may hold, ahead and behind
 
 	precise bool // report every position change, not whole seconds
 }
@@ -42,7 +43,18 @@ type Player struct {
 // New creates a player. relay may be nil; when set, stream URLs are routed
 // through it (mpv itself cannot use SOCKS proxies).
 func New(relay *Relay) *Player {
-	return &Player{Events: make(chan Event, 64), relay: relay, speed: 1, volume: 100}
+	return &Player{Events: make(chan Event, 64), relay: relay, speed: 1, volume: 100, buffer: 150}
+}
+
+// SetBuffer limits how much of a stream mpv keeps in memory, in MiB.
+func (p *Player) SetBuffer(mb int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.buffer = mb
+	if p.conn != nil {
+		p.send("set_property", "demuxer-max-bytes", fmt.Sprintf("%dMiB", mb))
+		p.send("set_property", "demuxer-max-back-bytes", fmt.Sprintf("%dMiB", mb))
+	}
 }
 
 // Available reports whether mpv is installed.
@@ -67,6 +79,8 @@ func (p *Player) start() error {
 		// would register a second one.
 		"--load-scripts=no",
 		"--input-ipc-server="+p.sock,
+		fmt.Sprintf("--demuxer-max-bytes=%dMiB", p.buffer),
+		fmt.Sprintf("--demuxer-max-back-bytes=%dMiB", p.buffer),
 	)
 	if err := p.cmd.Start(); err != nil {
 		return fmt.Errorf("starting mpv: %w", err)

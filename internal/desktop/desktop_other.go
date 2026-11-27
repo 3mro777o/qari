@@ -51,3 +51,10 @@ $t.Item(0).AppendChild($x.CreateTextNode($env:QARI_TITLE)) > $null
 $t.Item(1).AppendChild($x.CreateTextNode($env:QARI_BODY)) > $null
 $app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show([Windows.UI.Notifications.ToastNotification]::new($x))`
+
+// SetNotify turns notifications on or off. Call it from the goroutine that calls Set.
+func (d *Desktop) SetNotify(on bool) {
+	if d != nil {
+		d.notify = on
+	}
+}

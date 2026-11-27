@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -30,7 +31,7 @@ import (
 var version = "dev"
 
 var (
-	lang        = flag.String("lang", envOr("QARI_LANG", "eng"), "language for reciter and surah names (see --languages)")
+	lang        = flag.String("lang", os.Getenv("QARI_LANG"), "language for reciter and surah names (see --languages; default: saved choice, else eng)")
 	proxy       = flag.String("proxy", os.Getenv("QARI_PROXY"), "proxy URL for all traffic, e.g. socks5://127.0.0.1:1080")
 	theme       = flag.String("theme", os.Getenv("QARI_THEME"), "color theme name (see --themes; overrides saved choice)")
 	listThemes  = flag.Bool("themes", false, "list available color themes and exit")
@@ -139,6 +140,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	// Flags and environment win over what was saved in Settings.
+	set := st.Settings
+	*lang = cmp.Or(*lang, set.Lang, "eng")
+	*arabic = *arabic || set.Arabic
+	*noNotify = *noNotify || set.NoNotify
 
 	var p *player.Player
 	var desk *desktop.Desktop
@@ -157,7 +163,7 @@ func main() {
 	opts := ui.Options{
 		Client: client, Lang: *lang, Store: st, Player: p, Desktop: desk,
 		Downloads: download.New(dataDir, httpClient),
-		Popular:   popular.Load(), NoArabic: !*arabic, Theme: *theme, Version: version, Headless: *noUI,
+		Popular:   popular.Load(), NoArabic: !*arabic, NoNotify: *noNotify, Theme: *theme, Version: version, Headless: *noUI,
 	}
 	if cmd != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -252,13 +258,6 @@ func paths() (cacheDir, stateFile, dataDir string) {
 	}
 	return filepath.Join(cache, "qari"), filepath.Join(xdg("XDG_STATE_HOME", ".local/state"), "qari", "state.json"),
 		filepath.Join(xdg("XDG_DATA_HOME", ".local/share"), "qari")
-}
-
-func envOr(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
 }
 
 func fail(err error) {

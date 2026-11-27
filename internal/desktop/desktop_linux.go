@@ -181,3 +181,10 @@ func (p player) SetPosition(_ dbus.ObjectPath, us int64) *dbus.Error {
 	p.d.send("setpos", float64(us)/1e6)
 	return nil
 }
+
+// SetNotify turns notifications on or off. Call it from the goroutine that calls Set.
+func (d *Desktop) SetNotify(on bool) {
+	if d != nil {
+		d.notify = on
+	}
+}

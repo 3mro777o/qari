@@ -190,7 +190,7 @@ ayarları → Ortam Değişkenleri*) ve `qari completion` satırını profiliniz
 
 1. **Açın.** `qari` yazın. **Home** (Ana sayfa) ekranına gelirsiniz: *Continue listening*, favori
    kârileriniz ve en çok dinlenen kâriler. Üstteki sekmeler: `1` Home, `2` Qaris (Kâriler),
-   `3` Surahs (Sureler), `4` Radio, `5` Downloads (İndirilenler), `6` History (Geçmiş). Geçmek için
+   `3` Surahs (Sureler), `4` Radio, `5` Downloads (İndirilenler), `6` History (Geçmiş), `7` Settings. Geçmek için
    bir rakama ya da `tab` tuşuna basın.
 
    ![Ana sayfa: dinlemeye devam et, favori kâriler ve en çok dinlenen kâriler](docs/home.png)
@@ -305,6 +305,9 @@ dosyasında yükleyin. Tamamlama, adları qari'yi bir kez açtıktan sonra öğr
 - **Radio** (`4`): mp3quran.net'in canlı Kur'an radyo istasyonları. `f` istasyonu favorilere ekler.
 - **History** (`6`): başlattığınız son 200 sure ve istasyon, güne göre gruplanmış ve nerede
   kaldığınızla birlikte. `enter` birini o noktadan yeniden çalar; `x` bir kaydı kaldırır.
+- **Settings** (`7`, Ayarlar): tampon (mpv'nin bir surenin ne kadarını bellekte tuttuğu, varsayılan
+  25 MB), ses ve hız (hatırlanır), isim dili, Arapça isimler, bildirimler, tema, rivayet, sıralama ve
+  tekrar. `enter` ya da `→` bir satırı değiştirir, `←` geri alır. `--lang` gibi seçenekler önceliklidir.
 - **Favoriler:** bir kâride `f`, onu Home'a ve *Favorite qaris* tarifine ekler.
 - **Herkesi göster:** varsayılan olarak tam kaydı olan tanınmış kârileri görürsünüz. `a` eksik ve
   daha az bilinen kayıtlar dahil hepsini gösterir. `s` popülerliğe, ada ya da son güncellenmeye
@@ -364,7 +367,7 @@ Bu liste için uygulamada `?`'ye basın. Tuşlar mpv, cmus ve vim'i izler.
 
 | Tuş | İşlev |
 | --- | --- |
-| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
+| `1`–`7`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History, Settings |
 | `j` `k` / `↓` `↑` | Gezin |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Yarım sayfa aşağı / yukarı |
 | `g` `G` / `home` `end` | İlk / son satır |

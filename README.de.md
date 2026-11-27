@@ -189,7 +189,7 @@ Systemeinstellungen → Umgebungsvariablen*) und die Zeile `qari completion` aus
 
 1. **Starte es.** Tipp `qari`. Du landest auf **Home** (Startseite): *Continue listening*, deine
    Lieblingsrezitatoren und die meistgehörten Rezitatoren. Die Tabs oben sind `1` Home, `2` Qaris,
-   `3` Surahs, `4` Radio, `5` Downloads, `6` History. Drück eine Zahl oder `tab`, um zu wechseln.
+   `3` Surahs, `4` Radio, `5` Downloads, `6` History, `7` Settings. Drück eine Zahl oder `tab`, um zu wechseln.
 
    ![Startseite: Weiterhören, Lieblingsrezitatoren und die meistgehörten Rezitatoren](docs/home.png)
 
@@ -304,6 +304,10 @@ Startdatei deiner Shell. Die Vervollständigung kennt die Namen, sobald du qari 
 - **History** (`6`, Verlauf): die letzten 200 Suren und Sender, die du gestartet hast, nach Tagen
   gruppiert, mit der Stelle, an der du aufgehört hast. `enter` spielt einen Eintrag ab dieser Stelle
   erneut; `x` entfernt einen Eintrag.
+- **Settings** (`7`, Einstellungen): Puffer (wie viel einer Sure mpv im Speicher hält, standardmäßig
+  25 MB), Lautstärke und Tempo (werden gemerkt), Namenssprache, arabische Namen, Benachrichtigungen,
+  Theme, Riwaya, Sortierung und Wiederholung. `enter` oder `→` ändert eine Zeile, `←` geht zurück.
+  Optionen wie `--lang` haben Vorrang.
 - **Favoriten:** `f` auf einem Rezitator fügt ihn zu Home und zum Rezept *Favorite qaris* hinzu.
 - **Alle anzeigen:** Standardmäßig siehst du bekannte Rezitatoren mit vollständiger Aufnahme. `a`
   zeigt alle, auch unvollständige und weniger bekannte Aufnahmen. `s` sortiert nach Beliebtheit, Name
@@ -364,7 +368,7 @@ Drück `?` in der App, um diese Liste zu sehen. Die Tasten orientieren sich an m
 
 | Taste | Aktion |
 | --- | --- |
-| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
+| `1`–`7`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History, Settings |
 | `j` `k` / `↓` `↑` | Bewegen |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Halbe Seite runter / hoch |
 | `g` `G` / `home` `end` | Erste / letzte Zeile |

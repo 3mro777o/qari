@@ -486,3 +486,36 @@ func TestStalePlayerEventIgnored(t *testing.T) {
 		t.Fatalf("current event not saved: %+v", p)
 	}
 }
+
+func TestSettingsTab(t *testing.T) {
+	m := send(testModel(t, 100, 30), keys("7")...)
+	if m.page != pSettings {
+		t.Fatalf("page %d, want settings", m.page)
+	}
+	checkFrame(t, "settings", m)
+	// Row 0 is the buffer: enter steps 25 -> 50, left back twice to 10.
+	m = send(m, keys("enter")...)
+	if got := m.Store.Settings.Buffer(); got != 50 {
+		t.Fatalf("buffer %d after enter, want 50", got)
+	}
+	m = send(m, tea.KeyMsg{Type: tea.KeyLeft}, tea.KeyMsg{Type: tea.KeyLeft})
+	if got := m.Store.Settings.Buffer(); got != 10 {
+		t.Fatalf("buffer %d after left twice, want 10", got)
+	}
+	// Arabic names toggle and are saved.
+	m.list().cursor = slices.IndexFunc(settings, func(s setting) bool { return s.name == "Arabic names" })
+	was := m.NoArabic
+	m = send(m, keys("enter")...)
+	if m.NoArabic == was || m.Store.Settings.Arabic != !m.NoArabic {
+		t.Fatalf("arabic toggle: NoArabic %v, saved %v", m.NoArabic, m.Store.Settings.Arabic)
+	}
+	checkFrame(t, "settings narrow", send(m, tea.WindowSizeMsg{Width: 60, Height: 20}))
+	// Choosing a name language saves it and reloads the catalog.
+	m.langs = []api.Language{{Locale: "eng", Language: "English"}, {Locale: "tr", Language: "Turkish"}}
+	m.openPick(ovLang, 1)
+	checkFrame(t, "language picker", m)
+	m = send(m, keys("enter")...)
+	if m.Lang != "tr" || m.Store.Settings.Lang != "tr" || !m.loading {
+		t.Fatalf("language: Lang %q, saved %q, loading %v", m.Lang, m.Store.Settings.Lang, m.loading)
+	}
+}

@@ -31,7 +31,7 @@ func init() {
 	}
 	groups = []group{
 		{"NAVIGATION", []binding{
-			{[]string{"1", "2", "3", "4", "5", "6"}, "1-6", "Go to tab: Home ... History",
+			{[]string{"1", "2", "3", "4", "5", "6", "7"}, "1-7", "Go to tab: Home ... Settings",
 				func(m *Model, k string) tea.Cmd { m.goTab(int(k[0] - '1')); return nil }},
 			{[]string{"tab", "shift+tab"}, "tab", "Next / previous tab (shift+tab)",
 				func(m *Model, k string) tea.Cmd {
@@ -143,6 +143,9 @@ func (m *Model) onKey(msg tea.KeyMsg) tea.Cmd {
 	case m.ov != ovNone:
 		return m.pickKey(k)
 	}
+	if cmd, ok := m.settingsKey(k); ok {
+		return cmd
+	}
 	for _, g := range groups {
 		for _, b := range g.b {
 			if slices.Contains(b.keys, k) {
@@ -242,6 +245,8 @@ func (m *Model) pickN() int {
 		return len(m.fieldItems())
 	case ovAyahs:
 		return len(hifzFields(&m.hifz, 0))
+	case ovLang:
+		return len(m.langs)
 	}
 	return len(themes)
 }
@@ -302,6 +307,8 @@ func (m *Model) choose() tea.Cmd {
 		m.Store.Settings.Theme = m.th.ID
 		m.save()
 		return m.flash("Theme: " + m.th.Name)
+	case ovLang:
+		return m.setLang(m.langs[i])
 	}
 	return nil
 }
@@ -316,6 +323,8 @@ func (m *Model) activateKey(string) tea.Cmd { return m.activate() }
 func (m *Model) activate() tea.Cmd {
 	i, q := m.list().cursor, m.list().query
 	switch m.page {
+	case pSettings:
+		return settings[i].change(m, 1)
 	case pSurahs:
 		if items := m.surahs(nil, q); i < len(items) {
 			m.page, m.surah, m.lists[pSurah] = pSurah, items[i].ID, listState{}
@@ -432,6 +441,8 @@ func (m *Model) volume(d float64) tea.Cmd {
 		return nil
 	}
 	m.vol = m.Player.AddVolume(d)
+	m.Store.Settings.Volume = m.vol
+	m.save()
 	if m.muted && d > 0 {
 		return m.mute()
 	}
@@ -455,6 +466,8 @@ func (m *Model) setSpeed(i int) tea.Cmd {
 		return nil
 	}
 	m.speed = max(0, min(i, len(speeds)-1))
+	m.Store.Settings.Speed = speeds[m.speed]
+	m.save()
 	if m.kind != playRadio {
 		m.Player.SetSpeed(speeds[m.speed])
 	}

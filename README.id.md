@@ -191,7 +191,7 @@ settings → Environment Variables*) dan baris `qari completion` dari profil And
 
 1. **Buka.** Ketik `qari`. Anda akan masuk ke **Home** (Beranda): *Continue listening*, qari favorit
    Anda, dan qari yang paling banyak didengarkan. Tab di bagian atas adalah `1` Home, `2` Qaris,
-   `3` Surahs, `4` Radio, `5` Downloads (Unduhan), `6` History (Riwayat dengar). Tekan angka atau
+   `3` Surahs, `4` Radio, `5` Downloads (Unduhan), `6` History (Riwayat dengar), `7` Settings. Tekan angka atau
    `tab` untuk berpindah.
 
    ![Beranda: lanjutkan mendengarkan, qari favorit, dan qari yang paling banyak didengarkan](docs/home.png)
@@ -308,6 +308,9 @@ startup shell Anda. Pelengkapan mempelajari nama-nama setelah Anda membuka qari 
 - **Radio** (`4`): stasiun radio Al-Qur'an langsung dari mp3quran.net. `f` menandai stasiun favorit.
 - **History** (`6`): 200 surah dan stasiun terakhir yang Anda putar, dikelompokkan per hari, beserta
   posisi terakhir Anda. `enter` memutarnya lagi dari titik itu; `x` menghapus satu entri.
+- **Settings** (`7`, Pengaturan): buffer (seberapa banyak surah yang disimpan mpv di memori, bawaan
+  25 MB), volume dan kecepatan (diingat), bahasa nama, nama Arab, notifikasi, tema, riwayat, urutan
+  dan pengulangan. `enter` atau `→` mengubah satu baris, `←` mundur. Opsi seperti `--lang` diutamakan.
 - **Favorit:** `f` pada qari menambahkannya ke Home dan ke resep *Favorite qaris*.
 - **Tampilkan semua:** secara bawaan Anda melihat qari terkenal dengan rekaman lengkap. `a`
   menampilkan semuanya, termasuk rekaman parsial dan yang kurang dikenal. `s` mengurutkan
@@ -368,7 +371,7 @@ Tekan `?` di aplikasi untuk melihat daftar ini. Tombol-tombolnya mengikuti mpv, 
 
 | Tombol | Fungsi |
 | --- | --- |
-| `1`–`6`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History |
+| `1`–`7`, `tab` / `shift+tab` | Home, Qaris, Surahs, Radio, Downloads, History, Settings |
 | `j` `k` / `↓` `↑` | Bergerak |
 | `ctrl+d` `ctrl+u` / `pgdn` `pgup` | Setengah halaman ke bawah / atas |
 | `g` `G` / `home` `end` | Baris pertama / terakhir |
