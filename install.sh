@@ -13,6 +13,7 @@ Darwin)
 	# Homebrew brings mpv and keeps both up to date.
 	command -v brew >/dev/null || die "install Homebrew first: https://brew.sh"
 	brew tap "$repo" "https://github.com/$repo" >/dev/null 2>&1 || true
+	brew trust "$repo" >/dev/null 2>&1 || true # newer Homebrew refuses untrusted taps
 	if brew list qari >/dev/null 2>&1; then brew upgrade qari || true; else brew install qari; fi
 	say "Done. Type: qari"
 	exit 0 ;;

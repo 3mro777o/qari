@@ -69,7 +69,7 @@ because it is not code-signed yet.
 
 <details><summary>Other ways</summary>
 
-**Homebrew:** `brew tap 3mro777o/qari https://github.com/3mro777o/qari && brew install qari`
+**Homebrew:** `brew tap 3mro777o/qari https://github.com/3mro777o/qari && brew trust 3mro777o/qari && brew install qari`
 
 **Scoop:** `scoop bucket add qari https://github.com/3mro777o/qari; scoop install qari`, plus mpv
 (`scoop bucket add extras; scoop install mpv`).
