@@ -5,43 +5,55 @@
 class Qari < Formula
   desc "Terminal Quran player for mp3quran.net"
   homepage "https://github.com/3mro777o/qari"
-  version "0.2.1"
+  version "0.3.0"
   license "MIT"
 
   depends_on "mpv"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_darwin_amd64.tar.gz"
-      sha256 "5b0c08bcf0cce6c788fe3f6ac9b215551c66c030e371aad49b748bcf24249e58"
+      url "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_darwin_amd64.tar.gz"
+      sha256 "7738d8e7001d3f279133a6f0319bf5815992e0420819936a8f51989bc1ef6799"
 
       define_method(:install) do
         bin.install "qari"
+        bash_completion.install "completions/qari.bash" => "qari"
+        zsh_completion.install "completions/qari.zsh" => "_qari"
+        fish_completion.install "completions/qari.fish"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_darwin_arm64.tar.gz"
-      sha256 "d09076b679b7a2a853a7fa9356a6c85ba5ac4a9b8511c9dc1a4d19c610ef9e55"
+      url "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_darwin_arm64.tar.gz"
+      sha256 "896d2f89fb01640e324497edaf233245b420c26459e36c737817d573496cfaca"
 
       define_method(:install) do
         bin.install "qari"
+        bash_completion.install "completions/qari.bash" => "qari"
+        zsh_completion.install "completions/qari.zsh" => "_qari"
+        fish_completion.install "completions/qari.fish"
       end
     end
   end
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_linux_amd64.tar.gz"
-      sha256 "451a0eaf61f2fdf88bafbb0f70165299f47fafd16f7be28ad3113af4e1e73498"
+      url "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_linux_amd64.tar.gz"
+      sha256 "b1bb313d41ae9568b9a9bcd6ad984d1ea91815bda5b78022735f73fb143c278d"
       define_method(:install) do
         bin.install "qari"
+        bash_completion.install "completions/qari.bash" => "qari"
+        zsh_completion.install "completions/qari.zsh" => "_qari"
+        fish_completion.install "completions/qari.fish"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/3mro777o/qari/releases/download/v0.2.1/qari_0.2.1_linux_arm64.tar.gz"
-      sha256 "24c0ae6b4c0c5f4c682528d11569484de6112061078caf0679d931c65ce9c2f6"
+      url "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_linux_arm64.tar.gz"
+      sha256 "c1d5c38a60f5a6a15ea6a4bc40e9c9daf4ae2a20dc7aa63614f0c05b693577cc"
       define_method(:install) do
         bin.install "qari"
+        bash_completion.install "completions/qari.bash" => "qari"
+        zsh_completion.install "completions/qari.zsh" => "_qari"
+        fish_completion.install "completions/qari.fish"
       end
     end
   end
