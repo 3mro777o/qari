@@ -1,19 +1,19 @@
 {
-    "version": "0.3.0",
+    "version": "0.3.1",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_windows_amd64.zip",
+            "url": "https://github.com/3mro777o/qari/releases/download/v0.3.1/qari_0.3.1_windows_amd64.zip",
             "bin": [
                 "qari.exe"
             ],
-            "hash": "c93ceb56ea1312694940c719e1c3236529384b08b6cb410931a01525076c8da4"
+            "hash": "2a64f0be3ed80974ad15bd01b41aa333c7c0902e872b4345732834690915e689"
         },
         "arm64": {
-            "url": "https://github.com/3mro777o/qari/releases/download/v0.3.0/qari_0.3.0_windows_arm64.zip",
+            "url": "https://github.com/3mro777o/qari/releases/download/v0.3.1/qari_0.3.1_windows_arm64.zip",
             "bin": [
                 "qari.exe"
             ],
-            "hash": "28a393278466095ac749757ee5176b6ee8bf74306c803133094dcd6ecd918497"
+            "hash": "fe091af936e8b56fdfe1e178f91e75c8185ae6848129153e6af4222ff1e4e384"
         }
     },
     "homepage": "https://github.com/3mro777o/qari",
