@@ -102,6 +102,7 @@ completion. Homebrew then keeps both updated with `brew upgrade`.
 > [!NOTE]
 > **Windows Smart App Control** blocks programs that are not code-signed, and qari is not signed
 > yet. If Windows refuses to run `qari.exe`, that is the reason. See [Troubleshooting](#troubleshooting).
+> Signing through the SignPath Foundation is requested; see the [Code signing policy](#code-signing-policy).
 
 <details>
 <summary><b>Other ways to install</b> (Homebrew, Scoop, binary, Go)</summary>
