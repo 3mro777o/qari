@@ -12,7 +12,7 @@ you left off. Playback runs through [mpv](https://mpv.io).
 
 - **Browse by qari or by surah.** Open a qari to see their recordings and surahs, or open
   a surah to see every qari who recorded it.
-- **Search in any script.** `afasy`, `العفاسي` and `العَفاسي` all find the same qari;
+- **Search in any script.** `alafasi`, `العفاسي` and `العَفاسي` all find the same qari;
   `kahf`, `18` and `الكهف` all find the same surah. Diacritics and letter variants (أ/إ/ا, ة/ه, ى/ي)
   are ignored.
 - **Sensible default list.** By default you see well-known qaris with a complete recording
@@ -244,6 +244,12 @@ go run ./tools/genpopular
 | Downloaded surahs | `$XDG_DATA_HOME/qari/` (default `~/.local/share/qari/`) |
 
 On Windows: state in `%AppData%\qari\state.json`, cache and downloads in `%LocalAppData%\qari\`.
+
+## Privacy
+
+qari has no account and sends no analytics. It talks to two places only:
+mp3quran.net (the catalog, audio and ayah timings) and GitHub (once a day, to see whether a
+newer release is out). Everything it remembers stays on your computer (see above).
 
 ## Credits
 
