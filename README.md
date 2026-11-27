@@ -29,6 +29,9 @@ you left off. Playback runs through [mpv](https://mpv.io).
   *Daily surahs* (Al-Kahf, As-Sajdah, Ya-Sin, Al-Waqi'ah, Al-Mulk), *Mujawwad*, *Random radio* and
   *Favorite radios*. Create your own with `a`, or copy and change a built-in one with `c`.
   In the editor `enter` changes a field, `/` searches the qaris or surahs, and `s` saves.
+- **Repeat ayahs for memorizing.** On recordings with ayah timings (about 115 of them), `e` repeats a
+  range of ayahs: each ayah N times, the whole range M times, with a pause between repeats. `i` marks a
+  range on the fly while listening. Works on downloaded surahs too, offline.
 - **History.** The History tab lists the last 200 surahs and stations you started, by day, with
   where you left off. `enter` plays one again from that point.
 - **Offline listening.** Press `d` to download a surah, or a whole recording. The Downloads
@@ -120,6 +123,9 @@ Arabic keyboard layout: they follow the key position, so `ض` quits like `q` and
 | `[` `]` | Slower / faster (0.75×–2×) |
 | `r` | After a surah: autoplay next, repeat, or stop |
 | `t` | Sleep timer (15–60 min or end of surah) |
+| `e` | Repeat ayahs to memorize: from, to, times each ayah, times the range, gap between repeats |
+| `i` | Quick repeat: press at the first ayah, again at the last to loop them, a third time to stop (`esc` stops too) |
+| `u` | Times each repeated ayah plays (1–10) |
 | `f` | Favorite qari |
 | `a` | Well-known qaris / all qaris |
 | `s` | Sort qaris: popular, A–Z, recently updated |

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -186,4 +187,58 @@ func (c *Client) Radios(ctx context.Context, lang string) ([]Radio, error) {
 }
 func (c *Client) Languages(ctx context.Context) ([]Language, error) {
 	return getInto[Language](ctx, c, "languages", "language", "")
+}
+
+// TimingRead is a recording with per-ayah timings. ID is a "read" id, not a
+// reciter id; FolderURL is the recording's Moshaf.Server.
+type TimingRead struct {
+	ID        int    `json:"id"`
+	FolderURL string `json:"folder_url"`
+}
+
+// AyahTiming is where one ayah plays in its surah file, in milliseconds.
+// Ayah 0 is the opening (isti'adha or basmala).
+type AyahTiming struct {
+	Ayah  int `json:"ayah"`
+	Start int `json:"start_time"`
+	End   int `json:"end_time"`
+}
+
+func getArray[T any](ctx context.Context, c *Client, endpoint string, q url.Values) ([]T, error) {
+	b, err := c.get(ctx, endpoint, q)
+	if err != nil {
+		return nil, err
+	}
+	out := []T{}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, fmt.Errorf("%s: %w", endpoint, err)
+	}
+	return out, nil
+}
+
+// TimingReads lists the recordings that have ayah timings.
+func (c *Client) TimingReads(ctx context.Context) ([]TimingRead, error) {
+	return getArray[TimingRead](ctx, c, "ayat_timing/reads", nil)
+}
+
+// AyahTimings returns the ayah timings of surah in read, ordered by ayah.
+func (c *Client) AyahTimings(ctx context.Context, read, surah int) ([]AyahTiming, error) {
+	t, err := getArray[AyahTiming](ctx, c, "ayat_timing", url.Values{"read": {strconv.Itoa(read)}, "surah": {strconv.Itoa(surah)}})
+	slices.SortFunc(t, func(a, b AyahTiming) int { return a.Ayah - b.Ayah })
+	return t, err
+}
+
+// ReadFor is the timing read of mo, or 0 when it has no ayah timings.
+func ReadFor(reads []TimingRead, mo Moshaf) int {
+	key := func(u string) string {
+		u = strings.ToLower(strings.TrimRight(u, "/"))
+		u = strings.TrimPrefix(strings.TrimPrefix(u, "https://"), "http://")
+		return strings.TrimPrefix(u, "www.")
+	}
+	for _, r := range reads {
+		if mo.Server != "" && key(r.FolderURL) == key(mo.Server) {
+			return r.ID
+		}
+	}
+	return 0
 }

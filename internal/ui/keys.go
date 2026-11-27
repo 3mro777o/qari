@@ -45,7 +45,7 @@ func init() {
 			{[]string{"g", "home", "G", "end"}, "g G", "First / last row (home end)",
 				func(m *Model, k string) tea.Cmd { m.move(sign(k, "G", "end") * 99999); return nil }},
 			{[]string{"enter", "l"}, "enter l", "Open, or play", (*Model).activateKey},
-			{[]string{"esc", "h", "backspace"}, "esc h", "Back (clears the search first)", nop((*Model).escape)},
+			{[]string{"esc", "h", "backspace"}, "esc h", "Back (clears search or repeat)", func(m *Model, _ string) tea.Cmd { return m.escape() }},
 			{[]string{"/"}, "/", "Search (English, Arabic, number)", nop((*Model).startSearch)},
 			{[]string{"o"}, "o", "Go to what is playing", nop((*Model).jump)},
 		}},
@@ -64,6 +64,9 @@ func init() {
 				func(m *Model, k string) tea.Cmd { return m.setSpeed(m.speed + sign(k, "]")) }},
 			{[]string{"r"}, "r", "After a surah: next/repeat/stop", (*Model).cycleRepeat},
 			{[]string{"t"}, "t", "Sleep: 15-60 min / end of surah", (*Model).cycleSleep},
+			{[]string{"e"}, "e", "Repeat ayahs (from, to, times)", (*Model).openAyahs},
+			{[]string{"i"}, "i", "Quick repeat: mark start/end/off", (*Model).markAyah},
+			{[]string{"u"}, "u", "Times each repeated ayah plays", (*Model).cycleEach},
 		}},
 		{"LIBRARY", []binding{
 			{[]string{"f"}, "f", "Favorite qari or radio (pins it on Home)", (*Model).favorite},
@@ -201,6 +204,9 @@ func (m *Model) pickKey(k string) tea.Cmd {
 	if cmd, ok := m.recipeKey(k); ok {
 		return cmd
 	}
+	if cmd, ok := m.ayahKey(k); ok {
+		return cmd
+	}
 	switch k {
 	case "esc", "q", "h", "backspace", "w", "v", "c":
 		m.closePick()
@@ -234,6 +240,8 @@ func (m *Model) pickN() int {
 		return len(m.editFields())
 	case ovField:
 		return len(m.fieldItems())
+	case ovAyahs:
+		return len(hifzFields(&m.hifz, 0))
 	}
 	return len(themes)
 }
@@ -270,6 +278,9 @@ func (m *Model) closePick() {
 }
 
 func (m *Model) choose() tea.Cmd {
+	if m.ov == ovAyahs {
+		return m.startHifz()
+	}
 	if m.ov >= ovRandom {
 		return m.recipeChoose()
 	}
@@ -338,12 +349,17 @@ func (m *Model) activate() tea.Cmd {
 	return nil
 }
 
-func (m *Model) escape() {
-	if l := m.list(); l.query != "" {
+func (m *Model) escape() tea.Cmd {
+	switch l := m.list(); {
+	case l.query != "":
 		*l = listState{}
-	} else {
+	case m.rep != nil || m.abFrom > 0:
+		m.endRepeat()
+		return m.flash("Ayah repeat off")
+	default:
 		m.back()
 	}
+	return nil
 }
 
 func (m *Model) startSearch() {

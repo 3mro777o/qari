@@ -34,6 +34,8 @@ type Player struct {
 	relay  *Relay
 	speed  float64
 	volume float64
+
+	precise bool // report every position change, not whole seconds
 }
 
 // New creates a player. relay may be nil; when set, stream URLs are routed
@@ -131,7 +133,7 @@ func (p *Player) read(conn net.Conn) {
 			case "time-pos":
 				if json.Unmarshal(m.Data, &f) == nil {
 					// mpv reports many times a second; the UI only needs whole seconds.
-					same := int(f) == int(s.Pos) && !s.Loading
+					same := int(f) == int(s.Pos) && !s.Loading && !p.precise
 					s.Pos, s.Loading = f, false
 					if same {
 						p.mu.Unlock()
@@ -215,7 +217,15 @@ func (p *Player) AddVolume(d float64) float64 {
 	return v
 }
 
-func (p *Player) SetMute(on bool) { p.cmdLocked("set_property", "mute", on) }
+func (p *Player) SetMute(on bool)  { p.cmdLocked("set_property", "mute", on) }
+func (p *Player) SetPause(on bool) { p.cmdLocked("set_property", "pause", on) }
+
+// Precise makes position events sub-second, for ayah repeat.
+func (p *Player) Precise(on bool) {
+	p.mu.Lock()
+	p.precise = on
+	p.mu.Unlock()
+}
 
 // SetSpeed sets playback speed (pitch is preserved by mpv).
 func (p *Player) SetSpeed(s float64) {

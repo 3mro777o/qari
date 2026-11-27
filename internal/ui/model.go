@@ -55,6 +55,7 @@ const (
 	ovRandom // recipe list
 	ovEdit   // recipe editor
 	ovField  // multi-select for one editor field
+	ovAyahs  // ayah repeat
 )
 
 const (
@@ -134,6 +135,17 @@ type Model struct {
 	fieldQ   string          // search in ovField
 	editCur  int             // editor cursor while a field is open
 	typedWas string          // the recipe name before typing, restored by esc
+
+	reads     []api.TimingRead            // recordings with ayah timings, nil until first needed
+	timings   map[[2]int][]api.AyahTiming // read id, surah -> ayah timings
+	rep       *repeat                     // ayah repeat in progress
+	abFrom    int                         // ayah marked by i, waiting for the end mark
+	abEach    int                         // times each ayah plays in an A-B repeat
+	gapSeq    int                         // pause between repeats in progress
+	hifz      store.Hifz                  // values in the repeat popup
+	hifzTrack store.Track                 // the surah the popup repeats
+	hifzT     []api.AyahTiming            // its timings
+	hifzTyped bool                        // a digit was just typed into the popup
 }
 
 type (
@@ -249,6 +261,10 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		}
 	case sleepMsg:
 		return m.sleepTick(int(msg))
+	case timingMsg:
+		return m.onTimings(msg)
+	case gapMsg:
+		m.gapEnd(int(msg))
 	case playedMsg:
 		if msg.seq == m.seq && msg.err != nil {
 			m.buffering = false
@@ -310,6 +326,9 @@ func (m *Model) onPlayer(ev player.Event) tea.Cmd {
 		}
 	}
 	if !ev.Ended {
+		if m.rep != nil && !ev.Loading {
+			return m.repeatTick(ev.Pos)
+		}
 		return nil
 	}
 	m.Store.MarkFinished(m.track)
@@ -336,6 +355,15 @@ func (m *Model) onPlayer(ev player.Event) tea.Cmd {
 // playSurah starts tr, from the saved position unless fromStart. A saved
 // download is played from disk.
 func (m *Model) playSurah(tr store.Track, fromStart bool) tea.Cmd {
+	start := 0.0
+	if !fromStart {
+		start = m.Store.ResumeAt(tr)
+	}
+	return m.playAt(tr, start)
+}
+
+// playAt starts tr at start seconds; it ends any ayah repeat.
+func (m *Model) playAt(tr store.Track, start float64) tea.Cmd {
 	if m.Player == nil {
 		return m.flash("Install mpv to play audio")
 	}
@@ -344,10 +372,7 @@ func (m *Model) playSurah(tr store.Track, fromStart bool) tea.Cmd {
 	if !ok {
 		return m.flash("Recording not found")
 	}
-	start := 0.0
-	if !fromStart {
-		start = m.Store.ResumeAt(tr)
-	}
+	m.endRepeat()
 	url := mo.URL(tr.Surah)
 	if m.Downloads.Has(tr) {
 		url = m.Downloads.Path(tr)
@@ -373,6 +398,7 @@ func (m *Model) playRadio(r api.Radio) tea.Cmd {
 	if m.Player == nil {
 		return m.flash("Install mpv to play audio")
 	}
+	m.endRepeat()
 	m.kind, m.radio, m.pos, m.dur = playRadio, r, 0, 0
 	m.Store.Log(store.Entry{Time: time.Now(), Radio: r.ID, Recipe: m.recipeName()})
 	m.save()
@@ -459,6 +485,7 @@ func (m *Model) onDesktop(c desktop.Cmd) tea.Cmd {
 
 func (m *Model) stop() {
 	if m.kind != playNone {
+		m.endRepeat()
 		m.Player.Stop()
 		m.save()
 		m.kind, m.paused, m.buffering, m.pos, m.dur = playNone, false, false, 0, 0

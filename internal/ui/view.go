@@ -865,6 +865,8 @@ func (p *painter) dock(y int) []string {
 		icon, note := s.AccentB.Render("▶"), ""
 		if p.buffering {
 			icon, note = p.spin.View(), s.Muted.Render(" loading..")
+		} else if p.rep != nil && p.rep.gapping {
+			icon, note = s.Accent2.Render("‖"), s.Muted.Render(" gap")
 		} else if p.paused {
 			icon, note = s.Accent2.Render("‖"), s.Muted.Render(" paused")
 		}
@@ -881,6 +883,12 @@ func (p *painter) dock(y int) []string {
 		after := repeatNames[mode(repeatModes, p.Store.Settings.Repeat)]
 		if p.recipe != nil {
 			after = "⤮ " + trunc(bidi(p.recipe.Name), max(inner/4, 8))
+		}
+		switch {
+		case p.rep != nil:
+			after = p.rep.status()
+		case p.abFrom > 0:
+			after = fmt.Sprintf("from ayah %d · i marks the last", p.abFrom)
 		}
 		mr = s.Text.Render(t) + s.Muted.Render(" · ") + s.Accent2.Render(after)
 		line = bar(frac, inner, s.Accent, s.AccentB, s.Rule)
@@ -954,6 +962,14 @@ func (p *painter) footer(w int) string {
 	}
 	if p.kind == playSurah {
 		h = append(h, p.kv("<-/->", "seek"))
+	}
+	switch {
+	case p.rep != nil:
+		h = append([]string{p.kv("esc", "stop repeat"), p.kv("u", "times each")}, h...)
+	case p.abFrom > 0:
+		h = append([]string{p.kv("i", "mark last ayah"), p.kv("esc", "cancel")}, h...)
+	case p.kind == playSurah:
+		h = append(h, p.kv("e", "repeat ayahs"), p.kv("i", "mark A-B"))
 	}
 	var first, last []string
 	switch p.page {
@@ -1091,6 +1107,15 @@ func (p *painter) picker() []string {
 				v = p.input.View()
 			}
 			search = []string{boxed(bw, s.AccentB.Render("/ ")+bidi(v), s.Accent)}
+		}
+	}
+	if p.ov == ovAyahs {
+		n := lastAyah(p.hifzT)
+		title, info, act = "✦ Repeat ayahs", fmt.Sprintf("%03d %s · %s", p.hifzTrack.Surah, trunc(p.cat.SurahName(p.hifzTrack.Surah), 14), plural(n, "ayah")), "start"
+		foot = p.kv("<-/->", "change") + s.Muted.Render(" · ")
+		row = func(i int, sel bool) (string, string) {
+			hint := map[int]string{0: fmt.Sprintf("1-%d", n), 1: fmt.Sprintf("1-%d", n), 3: "0 = until stopped", 4: "silence before a repeat"}[i]
+			return "  " + fit(s.Muted.Render(hifzFields(&p.hifz, n)[i].label), 13) + p.name(sel, hifzValue(p.hifz, i)), s.Muted.Render(hint)
 		}
 	}
 	n := p.pickN()

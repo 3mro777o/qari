@@ -14,6 +14,7 @@ import (
 
 	"github.com/3mro777o/qari/internal/api"
 	"github.com/3mro777o/qari/internal/download"
+	"github.com/3mro777o/qari/internal/player"
 	"github.com/3mro777o/qari/internal/popular"
 	"github.com/3mro777o/qari/internal/store"
 	tea "github.com/charmbracelet/bubbletea"
@@ -322,5 +323,151 @@ func TestHistoryTab(t *testing.T) {
 	m = send(m, keys("esc", "x")...)
 	if len(m.Store.History) != 2 || m.Store.History[1].Radio != 2 {
 		t.Fatalf("x removed the wrong entry: %+v", m.Store.History)
+	}
+}
+
+// testTimings: an opening, then ayahs 1-4 back to back, 3-6 seconds each.
+var testTimings = []api.AyahTiming{{Ayah: 0, End: 7895}, {Ayah: 1, Start: 7895, End: 11168}, {Ayah: 2, Start: 11168, End: 14062},
+	{Ayah: 3, Start: 14062, End: 17462}, {Ayah: 4, Start: 17462, End: 23171}}
+
+func TestRepeatStateMachine(t *testing.T) {
+	r := &repeat{Hifz: store.Hifz{From: 1, To: 2, Each: 2, Times: 2, Gap: 1}, t: testTimings, ayah: 1, n: 1, round: 1, seeking: true}
+	type step struct {
+		pos  float64
+		seek float64
+		gap  bool
+		end  string
+	}
+	steps := []step{
+		{0, -1, false, ""},       // stale position before the first seek lands
+		{7.9, -1, false, ""},     // landed in ayah 1
+		{11.2, 7.895, true, ""},  // end of ayah 1: again, after a gap
+		{11.15, -1, false, ""},   // stale (the pause reports the old position)
+		{11.3, -1, false, ""},    // stale
+		{7.9, -1, false, ""},     // landed
+		{11.17, -1, false, ""},   // second play done: ayah 2 follows on, no seek
+		{14.1, 11.168, true, ""}, // ayah 2 again
+		{11.2, -1, false, ""},
+		{14.1, 7.895, true, ""}, // range done once: round 2 from ayah 1
+		{7.9, -1, false, ""},
+		{11.2, 7.895, true, ""},
+		{7.9, -1, false, ""},
+		{11.2, -1, false, ""},
+		{14.1, 11.168, true, ""},
+		{11.2, -1, false, ""},
+		{14.1, -1, false, "Ayah repeat finished"},
+	}
+	for i, s := range steps {
+		a := r.at(s.pos)
+		if a.seek != s.seek || a.gap != s.gap || a.end != s.end {
+			t.Fatalf("step %d at %.2f: %+v, want %+v (state %s)", i, s.pos, a, s, r.status())
+		}
+		if i == 7 && r.status() != "ayah 2/2 · 2 of 2 · range 1 of 2" {
+			t.Fatalf("status %q", r.status())
+		}
+	}
+	// Seeking inside the range follows it; seeking out of it ends the repeat.
+	r = &repeat{Hifz: store.Hifz{From: 1, To: 3, Each: 1}, t: testTimings, ayah: 1, n: 1, round: 1}
+	if a := r.at(15); a.seek >= 0 || a.end != "" || r.ayah != 3 {
+		t.Fatalf("follow: %+v ayah %d", a, r.ayah)
+	}
+	if a := r.at(20); a.end != "Ayah repeat off" {
+		t.Fatalf("leaving the range: %+v", a)
+	}
+	// Times 0 loops until stopped; the last ayah ends clear of the file's end.
+	r = &repeat{Hifz: store.Hifz{From: 4, To: 4, Each: 1}, t: testTimings, ayah: 4, n: 1, round: 1, dur: 23}
+	for i := range 5 {
+		r.at(17.5)
+		if a := r.at(22.71); a.seek != 17.462 || a.gap || r.round != i+2 {
+			t.Fatalf("loop %d: %+v round %d", i, a, r.round)
+		}
+	}
+	if s := r.status(); s != "ayah 4/4 · range 6, looping" {
+		t.Fatalf("status %q", s)
+	}
+}
+
+func TestHifzValidation(t *testing.T) {
+	for _, c := range []struct {
+		h    store.Hifz
+		want string
+	}{
+		{store.Hifz{From: 1, To: 4, Each: 3, Times: 1, Gap: 2}, ""},
+		{store.Hifz{From: 4, To: 4, Each: 1, Times: 0}, ""},
+		{store.Hifz{From: 3, To: 2, Each: 1, Times: 1}, "From must not be after To"},
+		{store.Hifz{From: 1, To: 5, Each: 1, Times: 1}, "To ayah must be 1-4"},
+		{store.Hifz{From: 0, To: 2, Each: 1, Times: 1}, "From ayah must be 1-4"},
+		{store.Hifz{From: 1, To: 2, Each: 0, Times: 1}, "Each ayah must be 1-99"},
+		{store.Hifz{From: 1, To: 2, Each: 1, Times: 1, Gap: 61}, "Gap must be 0-60"},
+	} {
+		if got := hifzErr(c.h, 4); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.h, got, c.want)
+		}
+	}
+}
+
+// hifzModel plays Al-Kahf by Alafasy (Hafs, which has timings) at 9 s.
+func hifzModel(t *testing.T, w, h int) Model {
+	m := testModel(t, w, h)
+	m.Player = player.New(nil) // never started: commands go nowhere
+	m.reads = []api.TimingRead{{ID: 7, FolderURL: "https://x/afs"}}
+	m.timings = map[[2]int][]api.AyahTiming{{7, 18}: testTimings}
+	m.kind, m.track, m.pos, m.dur = playSurah, store.Track{Reciter: 1, Moshaf: 101, Surah: 18}, 9, 2200
+	return m
+}
+
+func TestAyahRepeat(t *testing.T) {
+	m := send(hifzModel(t, 100, 30), keys("e")...)
+	if m.ov != ovAyahs || m.hifz != (store.Hifz{From: 1, To: 4, Each: 3, Times: 1}) {
+		t.Fatalf("popup %d values %+v", m.ov, m.hifz)
+	}
+	m = send(m, keys("j", "h", "j", "l", "j", "0")...) // To 3, each 4 times, range until stopped
+	if m = send(m, keys("enter")...); m.rep == nil || m.ov != ovNone || m.rep.To != 3 || m.rep.Each != 4 || m.rep.Times != 0 {
+		t.Fatalf("repeat %+v", m.rep)
+	}
+	if m.Store.Settings.Hifz.To != 3 {
+		t.Fatal("popup values are not remembered")
+	}
+	if m = send(m, keys("u")...); m.rep.Each != 5 {
+		t.Fatalf("u: each %d", m.rep.Each)
+	}
+	if m = send(m, keys("esc")...); m.rep != nil || m.page != pHome {
+		t.Fatal("esc should end the repeat before going back")
+	}
+	// Bad values are refused.
+	if m = send(m, keys("e", "j", "9", "enter")...); m.rep != nil || m.ov != ovAyahs || !strings.Contains(m.toast, "To ayah") {
+		t.Fatalf("invalid range accepted: %q", m.toast)
+	}
+	m = send(m, keys("esc")...)
+	// Quick A-B: mark at ayah 1, then at ayah 3; i again stops; n leaves.
+	m = send(m, keys("i")...)
+	m.pos = 15
+	if m = send(m, keys("i")...); m.rep == nil || m.rep.From != 1 || m.rep.To != 3 || m.rep.Times != 0 {
+		t.Fatalf("A-B %+v", m.rep)
+	}
+	if m = send(m, keys("i")...); m.rep != nil {
+		t.Fatal("third i should stop")
+	}
+	m = send(m, keys("i", "i", "n")...)
+	if m.rep != nil || m.abFrom != 0 || m.track.Surah != 19 {
+		t.Fatal("next surah should end the repeat")
+	}
+	// No timings: say so, and name the recording that has them.
+	m.track = store.Track{Reciter: 1, Moshaf: 102, Surah: 18}
+	if m = send(m, keys("i")...); m.abFrom != 0 || m.toast != "No ayah timings for this recording · v → Hafs · Murattal has them" {
+		t.Fatalf("toast %q", m.toast)
+	}
+}
+
+func TestAyahRepeatFrames(t *testing.T) {
+	for _, size := range [][2]int{{60, 16}, {80, 24}, {100, 24}, {130, 32}, {200, 60}} {
+		m := send(hifzModel(t, size[0], size[1]), keys("e")...)
+		checkFrame(t, fmt.Sprintf("repeat popup %dx%d", size[0], size[1]), m)
+		m = send(m, keys("enter", "u")...)
+		m.rep.round, m.rep.n = 2, 2
+		checkFrame(t, fmt.Sprintf("repeating %dx%d", size[0], size[1]), m)
+		m = send(m, keys("i", "i")...)
+		checkFrame(t, fmt.Sprintf("A marked %dx%d", size[0], size[1]), m)
+		checkFrame(t, fmt.Sprintf("help %dx%d", size[0], size[1]), send(m, keys("?")...))
 	}
 }

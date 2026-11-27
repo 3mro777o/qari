@@ -94,6 +94,18 @@ type Settings struct {
 	Repeat  string `json:"repeat"`
 	Theme   string `json:"theme,omitempty"`
 	Recipe  string `json:"recipe,omitempty"` // last random recipe
+	Hifz    Hifz   `json:"hifz,omitzero"`    // last ayah repeat
+}
+
+// Hifz is an ayah repeat for memorizing: ayahs From-To, each played Each
+// times, the whole range Times times (0 = until stopped), Gap seconds of
+// silence before each repeat.
+type Hifz struct {
+	From  int `json:"from"`
+	To    int `json:"to"`
+	Each  int `json:"each"`
+	Times int `json:"times"`
+	Gap   int `json:"gap"`
 }
 
 type Store struct {
