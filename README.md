@@ -50,26 +50,32 @@ you left off. Playback runs through [mpv](https://mpv.io).
 
 ## Install
 
-**macOS (Homebrew)**, installs mpv too:
+One command installs qari and mpv. Run the same command again to update.
+
+**Linux and macOS** (macOS uses [Homebrew](https://brew.sh)):
 
 ```sh
-brew tap 3mro777o/qari https://github.com/3mro777o/qari
-brew install qari
+curl -fsSL https://raw.githubusercontent.com/3mro777o/qari/main/install.sh | sh
 ```
 
-**Windows (Scoop)**, then mpv from the extras bucket:
+**Windows** (PowerShell, no admin needed):
 
 ```powershell
-scoop bucket add qari https://github.com/3mro777o/qari
-scoop install qari
-scoop bucket add extras; scoop install mpv
+irm https://raw.githubusercontent.com/3mro777o/qari/main/install.ps1 | iex
 ```
 
-Elsewhere you need **mpv** first: `sudo pacman -S mpv` · `sudo apt install mpv` · `sudo dnf install mpv`
-· `winget install mpv`.
+Then type `qari`. On Windows with Smart App Control turned on, Windows blocks qari
+because it is not code-signed yet.
+
+<details><summary>Other ways</summary>
+
+**Homebrew:** `brew tap 3mro777o/qari https://github.com/3mro777o/qari && brew install qari`
+
+**Scoop:** `scoop bucket add qari https://github.com/3mro777o/qari; scoop install qari`, plus mpv
+(`scoop bucket add extras; scoop install mpv`).
 
 **Prebuilt binary:** download the archive for your system from
-[Releases](https://github.com/3mro777o/qari/releases), extract it and put `qari` in your `PATH`.
+[Releases](https://github.com/3mro777o/qari/releases), extract it and put `qari` in your `PATH`. These ways need **mpv** installed too.
 
 **With Go 1.24+:**
 
@@ -83,6 +89,8 @@ go install github.com/3mro777o/qari@latest
 git clone https://github.com/3mro777o/qari && cd qari
 go build -o qari . && ./qari
 ```
+
+</details>
 
 Linux, macOS and Windows are supported. Use Windows Terminal on Windows.
 
