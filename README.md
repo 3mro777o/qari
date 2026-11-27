@@ -34,7 +34,7 @@ disk for offline listening. No account, no ads, no tracking.
   [Themes](#themes) · [Media keys](#media-keys) · [Arabic text](#arabic-text) · [Blocked networks](#blocked-networks)
 - [All keys](#all-keys) · [Options](#options)
 - [Troubleshooting](#troubleshooting)
-- [Where data is kept](#where-data-is-kept) · [Privacy](#privacy) · [Popularity data](#popularity-data)
+- [Where data is kept](#where-data-is-kept) · [Privacy](#privacy) · [Code signing policy](#code-signing-policy) · [Popularity data](#popularity-data)
 - [Build from source](#build-from-source) · [Credits](#credits) · [License](#license)
 
 ## Highlights
@@ -494,6 +494,19 @@ On Linux the `XDG_STATE_HOME`, `XDG_CACHE_HOME` and `XDG_DATA_HOME` variables mo
 qari has no account and sends no analytics. It talks to two places only: mp3quran.net (the lists,
 audio and ayah timings) and GitHub (once a day, to see whether a newer release is out). Everything it
 remembers stays on your computer.
+
+## Code signing policy
+
+Windows builds are to be signed for free by SignPath (requested): free code signing provided by
+[SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [3mro777o](https://github.com/3mro777o) (owner). Changes from anyone
+  else come as pull requests and are reviewed before merging.
+- **Approvers:** [3mro777o](https://github.com/3mro777o). Every signed release is approved by hand.
+- **Builds:** every release is built from this repository by GitHub Actions
+  ([release.yml](.github/workflows/release.yml)) with [GoReleaser](.goreleaser.yaml).
+- **Privacy:** see [Privacy](#privacy). qari contacts only mp3quran.net and GitHub, and sends no
+  personal data.
 
 ## Popularity data
 
